@@ -1,0 +1,13 @@
+DSH Portable · Windows
+Copyright (c) 2026 Stellifex
+
+本仓库是 DeepSeek Harness（DSH）的第三方 Windows 便携发行骨架，
+分发（或指导组装）以下第三方组件，它们各自遵循其发布许可证：
+
+* DeepSeek Harness (DSH) —— MIT License, Copyright (c) 2026 DeepSeek
+  https://github.com/deepseek-ai/deepseek-harness
+* 随包 DSH 插件（@linxin666/dsh-web-all、dsh-free-search、dsh-doc、
+  dsh-computer-use-win 等）—— 见各自 npm 包内 LICENSE
+* Node.js（Release 载荷内含）—— MIT License 及其第三方许可
+  https://nodejs.org
+* Microsoft Edge WebView2 Runtime（用户本机组件，不随包分发）—— Microsoft 许可条款

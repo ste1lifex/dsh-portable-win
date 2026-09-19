@@ -19,8 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
---------------------------------------------------------------------------
-本仓库是 DeepSeek Harness（DSH）的第三方 Windows 便携发行骨架，
-DSH 本体与随包插件分别遵循其各自的许可证 —— 上游 deepseek-ai/deepseek-harness
-以 MIT 许可证发布（Copyright (c) 2026 DeepSeek）。
