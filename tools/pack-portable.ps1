@@ -19,6 +19,7 @@
 param(
     [string]$OutDir,
     [string]$Name = 'DSH-portable-win-x64',
+    [string]$PayloadFrom,
     [switch]$NoZip
 )
 
@@ -33,27 +34,43 @@ $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $root = Split-Path -Parent $here
 if (-not $OutDir) { $OutDir = Join-Path $root 'dist' }
 $target = Join-Path $OutDir $Name
+if (-not $PayloadFrom) { $PayloadFrom = $root }
 
 function Step($m) { Write-Host "[pack] $m" -ForegroundColor Cyan }
 function Fail($m) { Write-Host "[pack] $m" -ForegroundColor Red; exit 1 }
 
-# ---- 0) 自检 ---------------------------------------------------------------
-$nodeExe = Join-Path $root 'node\bin\node.exe'
-if (-not (Test-Path $nodeExe)) {
-    Fail "缺少 node\bin\node.exe —— 先跑 tools\fetch-node.ps1，或把现成包的 node\ 放进仓库根目录。"
+# 载荷查找：仓库根目录优先（例如 tools\fetch-node.ps1 生成的 node\、新编译的
+# DshDesktop.exe），其次 -PayloadFrom 指定的目录（例如上一次的发布构建目录）
+function Payload($rel) {
+    foreach ($base in @($root, $PayloadFrom)) {
+        $p = Join-Path $base $rel
+        if ($p -and (Test-Path $p)) { return $p }
+    }
+    return $null
 }
 
-$hasStore = Test-Path (Join-Path $root 'store')
-$hasVendor = Test-Path (Join-Path $root 'vendor')
-$hasRuntimes = Test-Path (Join-Path $root 'dsh-home\runtimes')
-$hasExe = Test-Path (Join-Path $root 'DshDesktop.exe')
+# ---- 0) 自检 ---------------------------------------------------------------
+$nodeSrc = Payload 'node'
+if (-not $nodeSrc) {
+    Fail "缺少 node\ —— 先跑 tools\fetch-node.ps1，或用 -PayloadFrom <目录> 指定已有载荷。"
+}
+if (-not (Test-Path (Join-Path $nodeSrc 'bin\node.exe'))) {
+    Fail "载荷里的 node\ 结构不对（应有 bin\node.exe）：$nodeSrc"
+}
 
-Step ("载荷：node=必带  store={0}  vendor={1}  runtimes={2}  DshDesktop.exe={3}" -f `
-        $(if ($hasStore) { '有' } else { '无' }), `
-        $(if ($hasVendor) { '有' } else { '无' }), `
-        $(if ($hasRuntimes) { '有' } else { '无' }), `
-        $(if ($hasExe) { '有' } else { '无' }))
-if (-not $hasStore) { Step '提示：没有 store\ → 目标机首启将联网按锁文件重建依赖（功能不变，只是需要网络）' }
+$storeSrc = Payload 'store'
+$vendorSrc = Payload 'vendor'
+$runtimesSrc = Payload 'dsh-home\runtimes'
+$exeSrc = Payload 'DshDesktop.exe'
+
+Step "载荷来源：$PayloadFrom"
+Step ("载荷：node=必带({0})  store={1}  vendor={2}  runtimes={3}  DshDesktop.exe={4}" -f `
+        $nodeSrc, `
+        $(if ($storeSrc) { '有' } else { '无' }), `
+        $(if ($vendorSrc) { '有' } else { '无' }), `
+        $(if ($runtimesSrc) { '有' } else { '无' }), `
+        $(if ($exeSrc) { '有' } else { '无' }))
+if (-not $storeSrc) { Step '提示：没有 store\ → 目标机首启将联网按锁文件重建依赖（功能不变，只是需要网络）' }
 
 # ---- 1) 复制骨架 -----------------------------------------------------------
 Step "准备输出目录 $target ..."
@@ -61,28 +78,28 @@ if (Test-Path $target) { Remove-Item $target -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $target | Out-Null
 
 # 仓库骨架：排除 .git / dist / 以及大载荷（下面单独按需复制）
-$excludeDirs = @('.git', 'dist', 'logs', 'backups', 'shot')
+$excludeDirs = @('.git', 'dist', 'logs', 'backups', 'shot', 'node', 'store', 'vendor')
 robocopy $root $target /E /NFL /NDL /NJH /NJS /R:1 /W:1 `
-    /XD (Join-Path $root 'node') (Join-Path $root 'store') (Join-Path $root 'vendor') `
-        (Join-Path $root 'dsh-home\runtimes') `
-        ($excludeDirs | ForEach-Object { Join-Path $root $_ }) `
+    /XD ($excludeDirs | ForEach-Object { Join-Path $root $_ }) (Join-Path $root 'dsh-home\runtimes') `
     /XF (Join-Path $root 'DshDesktop.exe') (Join-Path $root 'dsh.pid') | Out-Null
 
 # ---- 2) 复制载荷 -----------------------------------------------------------
-function CopyTree($rel) {
-    $src = Join-Path $root $rel
-    if (-not (Test-Path $src)) { return }
+function CopyTree($src, $rel) {
+    if (-not $src -or -not (Test-Path $src)) { return }
     $dst = Join-Path $target $rel
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $dst) | Out-Null
-    Step "复制 $rel ..."
+    Step "复制 $rel  ← $src"
     robocopy $src $dst /E /NFL /NDL /NJH /NJS /R:1 /W:1 | Out-Null
 }
 
-CopyTree 'node'
-if ($hasStore) { CopyTree 'store' }
-if ($hasVendor) { CopyTree 'vendor' }
-if ($hasRuntimes) { CopyTree 'dsh-home\runtimes' }
-if ($hasExe) { Copy-Item (Join-Path $root 'DshDesktop.exe') (Join-Path $target 'DshDesktop.exe') -Force }
+CopyTree $nodeSrc 'node'
+CopyTree $storeSrc 'store'
+CopyTree $vendorSrc 'vendor'
+CopyTree $runtimesSrc 'dsh-home\runtimes'
+if ($exeSrc) {
+    Copy-Item $exeSrc (Join-Path $target 'DshDesktop.exe') -Force
+    Step "复制 DshDesktop.exe  ← $exeSrc"
+}
 
 # ---- 3) 剔除本机数据与密钥（双保险）----------------------------------------
 Step '剔除本机数据与密钥 ...'
