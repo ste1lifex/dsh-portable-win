@@ -1,4 +1,4 @@
-﻿<#
+<#
   ===========================================================================
    取运行时最小集合：官方 Node（win-x64 便携版）+ pnpm  →  本仓库 node\
 
@@ -87,8 +87,12 @@ if (-not (Test-Path $pnpmCli)) { Fail "pnpm 安装后仍找不到 $pnpmCli" }
 
 # ---- 3) 收尾 ---------------------------------------------------------------
 Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
-# npm 全局安装会在 node\ 下留 pnpm / pnpm.cmd / npx 等壳，清掉无关的
-foreach ($junk in @('npx', 'npx.cmd', 'corepack', 'corepack.cmd', 'install_tools.bat', 'npm', 'npm.cmd')) {
+# npm 全局安装会在 node\ 下留一堆壳（pnpm.cmd / pnpm.ps1 / pn / pnpx / npx …）；
+# 我们只用 tools\pnpm.cmd 去调 node_modules\pnpm\bin\pnpm.mjs，其余清掉保持干净
+foreach ($junk in @('npx', 'npx.cmd', 'npx.ps1', 'npm', 'npm.cmd', 'npm.ps1',
+                    'corepack', 'corepack.cmd', 'corepack.ps1', 'install_tools.bat',
+                    'pn', 'pn.cmd', 'pn.ps1', 'pnpm', 'pnpm.cmd', 'pnpm.ps1',
+                    'pnpx', 'pnpx.cmd', 'pnpx.ps1', 'pnx', 'pnx.cmd', 'pnx.ps1')) {
     Remove-Item (Join-Path $nodeDir $junk) -Force -ErrorAction SilentlyContinue
 }
 Step "完成："
