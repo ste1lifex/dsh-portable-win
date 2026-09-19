@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>DshDesktop</AssemblyName>
+    <RootNamespace>DshDesktop</RootNamespace>
+    <!-- exe 静态图标（资源管理器里显示的那个），由 IconGen 的角色模式生成 -->
+    <ApplicationIcon>DshDesktop.ico</ApplicationIcon>
+    <ApplicationManifest>..\DshHub\app.manifest</ApplicationManifest>
+    <Version>1.0.0</Version>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>false</SelfContained>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 共享引擎 -->
+    <Compile Include="..\DshCore\DshCore.cs" />
+    <!-- 复用 DshHub 的确认对话框 -->
+    <Page Include="..\DshHub\AskDialog.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Compile Include="..\DshHub\AskDialog.xaml.cs" />
+    <!--
+      窗口/任务栏图标：运行时按 Windows 深浅色在两者间切换
+      （icon-dark = 原图黑底，icon-light = 黑底换成白底），均由 IconGen 生成。
+    -->
+    <Resource Include="icon-dark-256.png" />
+    <Resource Include="icon-dark-48.png" />
+    <Resource Include="icon-light-256.png" />
+    <Resource Include="icon-light-48.png" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
+  </ItemGroup>
+
+</Project>

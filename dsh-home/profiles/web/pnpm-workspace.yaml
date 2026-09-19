@@ -1,0 +1,25 @@
+packages:
+  - .
+
+nodeLinker: hoisted
+autoInstallPeers: false
+
+# dsh-web-ui family native dependencies with build scripts (pnpm 10+ blocks
+# them by default; the portable package must stay self-contained offline).
+allowBuilds:
+  cloudflared: true
+  cpu-features: true
+  node-pty: true
+  ssh2: true
+
+# pnpm 11 release-age gate: never silently roll back @linxin666/* to an older
+# version when a fresh release is inside the age window.
+minimumReleaseAgeExclude:
+  - '@linxin666/*'
+  - dsh-doc@0.1.1
+  - '@mlgbnb/dsh-archive-manager@1.0.7'
+  - '@morlay/better-session@0.0.11'
+  - '@morlay/session-branch@0.0.11'
+  - '@morlay/session-rdb@0.0.11'
+  - '@morlay/ui-conversation-message-actions@0.0.11'
+  - dsh-free-search@0.4.28 || 0.4.32

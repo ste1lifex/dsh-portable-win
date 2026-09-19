@@ -1,0 +1,38 @@
+# =============================================================================
+#  DSH 便携版（Windows）发行仓库 .gitattributes
+#  保证所有机器 clone 后换行符一致，脚本（.ps1/.bat/.cmd）在 Windows 上不因
+#  LF/CRLF 差异失效：仓库内统一 LF，检出到工作区时 Windows 脚本用 CRLF。
+# =============================================================================
+
+*.ps1   text eol=crlf
+*.cmd   text eol=crlf
+*.bat   text eol=crlf
+*.psm1  text eol=crlf
+
+*.md    text
+*.txt   text
+*.yml   text
+*.yaml  text
+*.json  text
+*.js    text
+*.ts    text
+*.mjs   text
+*.cjs   text
+*.css   text
+*.html  text
+*.xml   text
+*.xaml  text
+*.cs    text
+*.csproj text
+
+*.exe   binary
+*.dll   binary
+*.png   binary
+*.ico   binary
+*.jpg   binary
+*.jpeg  binary
+*.webp  binary
+*.gif   binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary

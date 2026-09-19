@@ -1,0 +1,8 @@
+{
+  "plugins": [
+    { "name": "@linxin666/dsh-web-all", "label": "Web UI 全家桶" },
+    { "name": "dsh-doc", "label": "dsh-doc 文档/OCR" },
+    { "name": "dsh-free-search", "label": "Free Search 联网搜索" },
+    { "name": "dsh-computer-use-win", "label": "Windows 电脑控制" }
+  ]
+}

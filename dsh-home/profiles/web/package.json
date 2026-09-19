@@ -1,0 +1,25 @@
+{
+  "name": "dsh-profile-web",
+  "private": true,
+  "dependencies": {
+    "@linxin666/dsh-web-all": "^0.3.23",
+    "dsh-computer-use-win": "^0.1.2",
+    "dsh-doc": "0.1.1",
+    "dsh-endfield-boot": "link:../../../plugins/dsh-endfield-boot",
+    "dsh-free-search": "0.4.32",
+    "dsh-pet-perlica": "link:../../../plugins/dsh-pet-perlica"
+  },
+  "dsh": {
+    "profile": {
+      "bundles": [
+        "@deepseek-ai/dsh-base",
+        "@deepseek-ai/dsh-web-app",
+        "dsh-doc",
+        "@linxin666/dsh-web-all",
+        "dsh-endfield-boot",
+        "dsh-free-search",
+        "dsh-computer-use-win"
+      ]
+    }
+  }
+}

@@ -1,0 +1,51 @@
+<Window x:Class="DshHub.AskDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="确认"
+        Width="460"
+        SizeToContent="Height"
+        WindowStartupLocation="CenterOwner"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Background="{DynamicResource WindowBg}"
+        FontFamily="Microsoft YaHei UI, Segoe UI"
+        TextOptions.TextFormattingMode="Display"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True">
+
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="46"
+                      ResizeBorderThickness="0"
+                      GlassFrameThickness="0"
+                      CornerRadius="0"
+                      UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
+
+    <Border Background="{DynamicResource WindowBg}" BorderBrush="{DynamicResource CardBorder}" BorderThickness="1">
+        <DockPanel>
+            <!-- Title bar：与主窗口一致，只留标题（品牌交给网页侧栏/任务栏，不再重复一只鲸鱼标） -->
+            <Border DockPanel.Dock="Top" Height="46" Background="{DynamicResource ChromeBg}"
+                    BorderBrush="{DynamicResource CardBorder}" BorderThickness="0,0,0,1">
+                <Grid>
+                    <TextBlock x:Name="TitleText" Text="确认" Margin="20,0,0,0"
+                               Foreground="{DynamicResource TextPrimary}" FontSize="13" FontWeight="SemiBold"
+                               VerticalAlignment="Center" />
+                    <Button x:Name="DlgCloseBtn" AutomationProperties.AutomationId="DialogClose"
+                            HorizontalAlignment="Right" Margin="0,0,6,0" Style="{StaticResource TitleButton}"
+                            Width="34" Height="34" Click="Cancel_Click" ToolTip="取消">
+                        <Path Data="M0,0 L8,8 M8,0 L0,8" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                              StrokeThickness="1.2" />
+                    </Button>
+                </Grid>
+            </Border>
+
+            <StackPanel Margin="20,18,20,20">
+                <TextBlock x:Name="MessageText" TextWrapping="Wrap" Foreground="{DynamicResource TextPrimary}"
+                           FontSize="13" LineHeight="21" />
+                <StackPanel x:Name="BtnHost" Orientation="Horizontal" HorizontalAlignment="Right"
+                            Margin="0,22,0,0" />
+            </StackPanel>
+        </DockPanel>
+    </Border>
+</Window>

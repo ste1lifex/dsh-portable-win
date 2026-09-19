@@ -1,0 +1,411 @@
+<Window x:Class="DshDesktop.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        Title="DeepSeek Harness"
+        Width="1320" Height="860"
+        MinWidth="940" MinHeight="620"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource WindowBg}"
+        FontFamily="Microsoft YaHei UI, Segoe UI"
+        Icon="pack://application:,,,/icon-dark-256.png"
+        WindowStyle="None"
+        ResizeMode="CanResizeWithGrip"
+        AllowsTransparency="False">
+
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="0"
+                      ResizeBorderThickness="6"
+                      GlassFrameThickness="0"
+                      CornerRadius="0"
+                      UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
+
+    <Border Background="{DynamicResource WindowBg}" BorderBrush="{DynamicResource CardBorder}" BorderThickness="1">
+        <DockPanel>
+
+            <!-- ============ 单行顶栏：状态 + 控制 + 窗口按钮 ============ -->
+            <Border DockPanel.Dock="Top" Height="46" Background="{DynamicResource ChromeBg}"
+                    BorderBrush="{DynamicResource CardBorder}" BorderThickness="0,0,0,1"
+                    MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <!--
+                        这里刻意不放鲸鱼 + 字标：网页侧栏紧接着就是同款品牌，
+                        叠两层反而像重复渲染。原生条只保留“服务状态”，品牌交给网页与
+                        任务栏图标（whale-256 / whale-light）去承担；版本号在「版本信息」里。
+                    -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="14,0,0,0">
+                        <Ellipse x:Name="StatusDot" Width="8" Height="8" Fill="{DynamicResource GrayBrush}"
+                                 VerticalAlignment="Center" Margin="0,0,7,0" />
+                        <TextBlock x:Name="StatusText" Text="检测中" Foreground="{DynamicResource TextSecondary}"
+                                   FontSize="11.5" VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <!-- 生命周期：启动 / 停止 / 重启 -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Rectangle x:Name="SepStatus" Width="1" Fill="{DynamicResource CardBorder}" Margin="12,11,12,11" />
+                        <Button x:Name="BtnStart" AutomationProperties.AutomationId="Start" Style="{StaticResource PrimaryButton}"
+                                Height="30" Padding="10,0" Click="Start_Click" Margin="0,0,6,0" ToolTip="启动服务">
+                            <StackPanel Orientation="Horizontal">
+                                <Path Data="M2,0 L10,5 L2,10 Z" Width="9" Height="9" VerticalAlignment="Center"
+                                      Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                <TextBlock x:Name="TxtStart" Text="启动" Margin="6,0,0,0" VerticalAlignment="Center" FontSize="12" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="BtnStop" AutomationProperties.AutomationId="Stop" Style="{StaticResource DangerButton}"
+                                Height="30" Padding="10,0" Click="Stop_Click" Margin="0,0,6,0" ToolTip="停止服务">
+                            <StackPanel Orientation="Horizontal">
+                                <Rectangle Width="9" Height="9" RadiusX="1.5" RadiusY="1.5" VerticalAlignment="Center"
+                                           Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                                <TextBlock x:Name="TxtStop" Text="停止" Margin="6,0,0,0" VerticalAlignment="Center" FontSize="12" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="BtnRestart" AutomationProperties.AutomationId="Restart" Style="{StaticResource GhostButton}"
+                                Height="30" Padding="10,0" Click="Restart_Click" ToolTip="重启服务">
+                            <StackPanel Orientation="Horizontal">
+                                <Viewbox Width="12" Height="12" VerticalAlignment="Center">
+                                    <Path Data="M17.65,6.35C16.2,4.9 14.21,4 12,4C7.58,4 4,7.58 4,12C4,16.42 7.58,20 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18C8.69,18 6,15.31 6,12C6,8.69 8.69,6 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4Z"
+                                          Fill="{DynamicResource TextSecondary}" Stretch="Uniform" />
+                                </Viewbox>
+                                <TextBlock x:Name="TxtRestart" Text="重启" Margin="6,0,0,0" VerticalAlignment="Center" FontSize="12" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+
+                    <!-- 更新：检查更新 / 立即更新 -->
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Rectangle x:Name="SepUpdate" Width="1" Fill="{DynamicResource CardBorder}" Margin="8,11,12,11" />
+                        <Button x:Name="BtnCheckUpdate" AutomationProperties.AutomationId="CheckUpdate" Style="{StaticResource GhostButton}"
+                                Height="30" Padding="10,0" Click="CheckUpdate_Click" Margin="0,0,6,0" ToolTip="检查更新（只读，不修改任何文件）">
+                            <StackPanel Orientation="Horizontal">
+                                <Viewbox Width="13" Height="13" VerticalAlignment="Center">
+                                    <Path Data="M7,1.5 A5.5,5.5 0 1 0 7,12.5 A5.5,5.5 0 1 0 7,1.5 M11.2,11.2 L15,15"
+                                          Stroke="{DynamicResource TextSecondary}" StrokeThickness="1.4" Stretch="Uniform" />
+                                </Viewbox>
+                                <TextBlock x:Name="TxtCheckUpdate" Text="检查更新" Margin="6,0,0,0" VerticalAlignment="Center" FontSize="12" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="BtnUpdate" AutomationProperties.AutomationId="Update" Style="{StaticResource PrimaryButton}"
+                                Height="30" Padding="10,0" Click="Update_Click" ToolTip="立即更新">
+                            <StackPanel Orientation="Horizontal">
+                                <Viewbox Width="12" Height="12" VerticalAlignment="Center">
+                                    <Path Data="M8,1 L8,11 M4,7.5 L8,11.5 L12,7.5 M2,14 L14,14"
+                                          Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                          StrokeThickness="1.6" Stretch="Uniform" />
+                                </Viewbox>
+                                <TextBlock x:Name="BtnUpdateText" Text="立即更新" Margin="6,0,0,0" VerticalAlignment="Center" FontSize="12" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+
+                    <!-- 工具：版本信息 / 日志 / 刷新界面 / 浏览器打开 -->
+                    <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Rectangle x:Name="SepTools" Width="1" Fill="{DynamicResource CardBorder}" Margin="8,11,12,11" />
+                        <Button x:Name="BtnVersions" AutomationProperties.AutomationId="Versions" Style="{StaticResource GhostButton}"
+                                Height="30" Padding="10,0" Click="Versions_Click" Margin="0,0,6,0" ToolTip="版本信息">
+                            <StackPanel Orientation="Horizontal">
+                                <Viewbox Width="13" Height="13" VerticalAlignment="Center">
+                                    <Path Data="M8,1.5 A6.5,6.5 0 1 0 8,14.5 A6.5,6.5 0 1 0 8,1.5 M8,7.2 L8,11.2 M8,4.3 L8,5.1"
+                                          Stroke="{DynamicResource TextSecondary}" StrokeThickness="1.4"
+                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" Stretch="Uniform" />
+                                </Viewbox>
+                                <TextBlock x:Name="TxtVersions" Text="版本信息" Margin="6,0,0,0" VerticalAlignment="Center" FontSize="12" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="BtnLogs" AutomationProperties.AutomationId="Logs" Style="{StaticResource GhostButton}"
+                                Height="30" Padding="10,0" Click="OpenLogs_Click" Margin="0,0,6,0" ToolTip="运行日志（可选中复制）">
+                            <StackPanel Orientation="Horizontal">
+                                <Viewbox Width="13" Height="13" VerticalAlignment="Center">
+                                    <Path Data="M3,1.5 L13,1.5 L13,14.5 L3,14.5 Z M5.5,5 L10.5,5 M5.5,7.6 L10.5,7.6 M5.5,10.2 L8.5,10.2"
+                                          Stroke="{DynamicResource TextSecondary}" StrokeThickness="1.4"
+                                          StrokeLineJoin="Round" Stretch="Uniform" />
+                                </Viewbox>
+                                <TextBlock x:Name="TxtLogs" Text="日志" Margin="6,0,0,0" VerticalAlignment="Center" FontSize="12" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="BtnReload" AutomationProperties.AutomationId="Reload" Style="{StaticResource GhostButton}"
+                                Height="30" Padding="10,0" Click="Reload_Click" Margin="0,0,6,0"
+                                ToolTip="重新加载 DSH 界面（页面卡住时点击恢复）">
+                            <StackPanel Orientation="Horizontal">
+                                <Viewbox Width="12" Height="12" VerticalAlignment="Center">
+                                    <Path Data="M8,1 A7,7 0 1 1 1.5,5.5 M8,1 L8,4 M8,1 L5,1" Stroke="{DynamicResource TextSecondary}"
+                                          StrokeThickness="1.5" Stretch="Uniform" />
+                                </Viewbox>
+                                <TextBlock x:Name="TxtReload" Text="刷新界面" Margin="6,0,0,0" VerticalAlignment="Center" FontSize="12" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="BtnOpenExternal" AutomationProperties.AutomationId="OpenExternal" Style="{StaticResource GhostButton}"
+                                Height="30" Padding="10,0" Click="OpenExternal_Click" ToolTip="用系统浏览器打开 DSH">
+                            <StackPanel Orientation="Horizontal">
+                                <Viewbox Width="12" Height="12" VerticalAlignment="Center">
+                                    <Path Data="M1,5 L9,1 L17,5 L17,11 L9,15 L1,11 Z" Stroke="{DynamicResource TextSecondary}"
+                                          StrokeThickness="1.4" Stretch="Uniform" />
+                                </Viewbox>
+                                <TextBlock x:Name="TxtOpenExternal" Text="浏览器打开" Margin="6,0,0,0" VerticalAlignment="Center" FontSize="12" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+
+                    <!-- 窗口按钮（状态已挪到最左，这里保持标准标题栏位置） -->
+                    <StackPanel Grid.Column="5" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button x:Name="MinBtn" AutomationProperties.AutomationId="Minimize"
+                                WindowChrome.IsHitTestVisibleInChrome="True"
+                                Style="{StaticResource TitleButton}" Width="44" Height="46" Click="Minimize_Click"
+                                ToolTip="最小化">
+                            <Path Data="M0,0 L12,0" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                  StrokeThickness="1.2" />
+                        </Button>
+                        <Button x:Name="MaxBtn" AutomationProperties.AutomationId="Maximize"
+                                WindowChrome.IsHitTestVisibleInChrome="True"
+                                Style="{StaticResource TitleButton}" Width="44" Height="46" Click="Maximize_Click"
+                                ToolTip="最大化/还原">
+                            <Path Data="M0,0 L12,0 M0,0 L0,10 M12,0 L12,10 M0,10 L12,10" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                  StrokeThickness="1.1" />
+                        </Button>
+                        <Button x:Name="CloseBtn" AutomationProperties.AutomationId="Close"
+                                WindowChrome.IsHitTestVisibleInChrome="True"
+                                Style="{StaticResource TitleButton}" Width="44" Height="46" Click="Close_Click"
+                                ToolTip="关闭">
+                            <Path Data="M0,0 L8,8 M8,0 L0,8" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                  StrokeThickness="1.2" />
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- ============ Versions panel (collapsible) ============ -->
+            <Border x:Name="VersionsPanel" DockPanel.Dock="Top" Background="{DynamicResource CardBg}"
+                    BorderBrush="{DynamicResource CardBorder}" BorderThickness="0,0,0,1"
+                    Visibility="Collapsed">
+                <Grid Margin="16,10,16,12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Grid Grid.Column="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="110" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="24" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="24" />
+                            <RowDefinition Height="24" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="核心引擎" Style="{StaticResource MetaText}" VerticalAlignment="Center" />
+                        <TextBlock x:Name="RowCoreVer" Grid.Row="0" Grid.Column="1" Style="{StaticResource MetaText}" Text="—" VerticalAlignment="Center" />
+                        <Border x:Name="RowCoreBadge" Grid.Row="0" Grid.Column="2" CornerRadius="6" Padding="8,2" VerticalAlignment="Center" Background="{DynamicResource BadgeNeutralBg}">
+                            <TextBlock x:Name="RowCoreBadgeText" Text="" FontSize="10.5" FontWeight="SemiBold" Foreground="{DynamicResource BadgeNeutralFg}" />
+                        </Border>
+                        <!-- 追踪插件行：动态生成（plugin-track.json 单一数据源） -->
+                        <StackPanel x:Name="PluginRows" Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" />
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="OCR 运行时" Style="{StaticResource MetaText}" VerticalAlignment="Center" />
+                        <TextBlock x:Name="RowOcrText" Grid.Row="2" Grid.Column="1" Style="{StaticResource MetaText}" Text="—" VerticalAlignment="Center" />
+                        <Border x:Name="RowOcrBadge" Grid.Row="2" Grid.Column="2" CornerRadius="6" Padding="8,2" VerticalAlignment="Center" Background="{DynamicResource BadgeNeutralBg}">
+                            <TextBlock x:Name="RowOcrBadgeText" Text="" FontSize="10.5" FontWeight="SemiBold" Foreground="{DynamicResource BadgeNeutralFg}" />
+                        </Border>
+                        <!-- 桌面外壳版本（顶栏右下角原来的版本号挪到这里） -->
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="桌面外壳" Style="{StaticResource MetaText}" VerticalAlignment="Center" />
+                        <TextBlock x:Name="RowShellVer" Grid.Row="3" Grid.Column="1" Style="{StaticResource MetaText}" Text="—" VerticalAlignment="Center" />
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <!-- ============ Footer ============ -->
+            <Border DockPanel.Dock="Bottom" Height="26" Background="{DynamicResource ChromeBg}"
+                    BorderBrush="{DynamicResource CardBorder}" BorderThickness="0,1,0,0">
+                <DockPanel Margin="12,0,10,0">
+                    <TextBlock x:Name="StatusDetailText" DockPanel.Dock="Left" Text=""
+                               Foreground="{DynamicResource TextDim}" FontSize="10.5" VerticalAlignment="Center" />
+                    <!-- 右下角：DeepSeek 官方余额（点一下刷新，悬停看明细） -->
+                    <Button x:Name="BalanceChip" DockPanel.Dock="Right" Style="{StaticResource ChipButton}"
+                            AutomationProperties.AutomationId="Balance" Click="Balance_Click"
+                            Margin="12,0,0,0" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="余额" Foreground="{DynamicResource TextDim}" FontSize="10.5"
+                                       VerticalAlignment="Center" />
+                            <TextBlock x:Name="BalanceText" Text="—" Margin="5,0,0,0" FontSize="10.5"
+                                       VerticalAlignment="Center"
+                                       Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
+                        </StackPanel>
+                    </Button>
+                    <!-- 最后一条日志（原来挤在控制条右侧，顶栏合并后挪到底部） -->
+                    <TextBlock x:Name="FooterText" Text="" Foreground="{DynamicResource TextDim}"
+                               FontSize="10.5" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                               Margin="16,0,12,0" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
+                </DockPanel>
+            </Border>
+
+            <!-- ============ 日志栏（可折叠，在 WebView 之前 Dock=Bottom）============ -->
+            <Border x:Name="LogPanel" DockPanel.Dock="Bottom" Height="220" Visibility="Collapsed"
+                    Background="{DynamicResource CardBg}" BorderBrush="{DynamicResource CardBorder}" BorderThickness="0,1,0,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="34" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+                    <Grid Grid.Row="0" Margin="12,0,10,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="运行日志" Foreground="{DynamicResource TextPrimary}" FontSize="12" FontWeight="SemiBold" />
+                            <TextBlock x:Name="LogCountText" Text="" Foreground="{DynamicResource TextDim}" FontSize="10.5" Margin="8,2,0,0" VerticalAlignment="Center" />
+                            <TextBlock Text="可拖选 / Ctrl+C 复制" Foreground="{DynamicResource TextDim}" FontSize="10.5" Margin="12,2,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Button Style="{StaticResource GhostButton}" Padding="10,3" Height="24" Margin="0,0,6,0"
+                                    Click="CopyAllLog_Click" VerticalAlignment="Center" ToolTip="把全部日志复制到剪贴板">
+                                <TextBlock Text="复制全部" FontSize="11" />
+                            </Button>
+                            <Button Style="{StaticResource GhostButton}" Padding="10,3" Height="24" Margin="0,0,6,0"
+                                    Click="ClearLog_Click" VerticalAlignment="Center">
+                                <TextBlock Text="清空" FontSize="11" />
+                            </Button>
+                            <Button Style="{StaticResource GhostButton}" Padding="10,3" Height="24" Margin="0,0,4,0"
+                                    Click="ToggleLogPanel_Click" VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal">
+                                    <Path Data="M2,6 L10,6 M6,10 L2,6 L6,2" Stroke="{DynamicResource TextSecondary}" StrokeThickness="1.4"
+                                          Width="10" Height="10" Margin="0,0,5,0" VerticalAlignment="Center" />
+                                    <TextBlock x:Name="LogPanelToggleText" Text="收起" FontSize="11" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+                    <Border Grid.Row="1" Background="{DynamicResource LogBg}" BorderBrush="{DynamicResource CardBorder}"
+                            BorderThickness="0,1,0,0">
+                        <!-- RichTextBox（只读）而不是 TextBlock 列表：原生支持拖选 / Ctrl+C / Ctrl+A -->
+                        <RichTextBox x:Name="LogBox" IsReadOnly="True" IsReadOnlyCaretVisible="False"
+                                     Background="Transparent" BorderThickness="0" Padding="12,8"
+                                     Foreground="{DynamicResource TextSecondary}"
+                                     SelectionBrush="{DynamicResource SelectionBg}"
+                                     VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                     FontFamily="Consolas, Microsoft YaHei UI" FontSize="11.5"
+                                     TextOptions.TextFormattingMode="Display">
+                            <RichTextBox.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="复制" InputGestureText="Ctrl+C"
+                                              Command="ApplicationCommands.Copy"
+                                              CommandTarget="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                    <MenuItem Header="全选" InputGestureText="Ctrl+A"
+                                              Command="ApplicationCommands.SelectAll"
+                                              CommandTarget="{Binding PlacementTarget, RelativeSource={RelativeSource AncestorType=ContextMenu}}" />
+                                    <Separator />
+                                    <MenuItem Header="复制全部日志" Click="CopyAllLog_Click" />
+                                    <MenuItem Header="清空日志" Click="ClearLog_Click" />
+                                </ContextMenu>
+                            </RichTextBox.ContextMenu>
+                            <FlowDocument x:Name="LogDoc" PagePadding="0" LineHeight="17" />
+                        </RichTextBox>
+                    </Border>
+                </Grid>
+            </Border>
+
+            <!-- ============ WebView2（最后一个子元素 = 填充剩余空间）============ -->
+            <Grid>
+                <wv2:WebView2 x:Name="WebView" AutomationProperties.AutomationId="WebView"
+                              CoreWebView2InitializationCompleted="WebView_InitCompleted"
+                              NavigationCompleted="WebView_NavigationCompleted" />
+                <!-- ENDFIELD boot plate loading overlay（终末地启动屏） -->
+                <Border x:Name="LoadingOverlay" Background="#101110" Visibility="Collapsed">
+                    <Grid>
+                        <!-- 左侧 DeepSeek 蓝进度轨：dim track 全高 + 实色 fill 自下而上 + 完成扫屏 wipe -->
+                        <Border x:Name="LoaderTrack" HorizontalAlignment="Left" VerticalAlignment="Stretch" Width="10"
+                                Background="#264D6BFE" />
+                        <Border x:Name="LoaderFill" HorizontalAlignment="Left" VerticalAlignment="Bottom" Width="10"
+                                Height="0" Background="#4D6BFE" />
+                        <Border x:Name="LoaderWipe" HorizontalAlignment="Left" VerticalAlignment="Stretch" Width="10"
+                                Background="#4D6BFE" Opacity="0" />
+
+                        <!-- 仪表组（ride the fill end，位置由代码驱动）：刻度 + 百分比 + 状态 -->
+                        <StackPanel x:Name="LoaderMeter" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="26,0,0,0">
+                            <Border x:Name="LoaderTick" Width="4" Height="15" Background="#4D6BFE" HorizontalAlignment="Left" />
+                            <TextBlock x:Name="LoaderPct" Text="0%" Foreground="#4D6BFE" FontSize="39" FontWeight="Bold"
+                                       FontFamily="Arial" Margin="0,7,0,0" />
+                            <TextBlock x:Name="LoaderStatus" Text="Connecting..." Foreground="#666666" FontSize="11"
+                                       FontFamily="Arial" Margin="0,12,0,0" />
+                        </StackPanel>
+
+                        <!-- 右侧品牌字标（ENDFIELD 启动屏同款） -->
+                        <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,64,0">
+                            <TextBlock Text="DEEPSEEK HARNESS" Foreground="#F5F5F0" FontSize="13" FontWeight="SemiBold"
+                                       Margin="0,0,0,10" />
+                            <TextBlock Text="END" Foreground="#F5F5F0" FontSize="52" FontWeight="Black"
+                                       FontFamily="Arial" Margin="0,0,0,-8" />
+                            <TextBlock Text="FIELD" Foreground="#F5F5F0" FontSize="52" FontWeight="Black"
+                                       FontFamily="Arial" />
+                            <Grid Margin="0,22,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Margin="0,2,14,0">
+                                    <Path Data="M0,0 L6,6 L0,12" Stroke="#4D6BFE" StrokeThickness="2.2" Width="8" Height="13" />
+                                    <Path Data="M0,0 L6,6 L0,12" Stroke="#4D6BFE" StrokeThickness="2.2" Width="8" Height="13" Margin="8,4,0,0" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="EDGE INTELLIGENCE THEME" Foreground="#8A8D88" FontSize="11"
+                                               FontWeight="Medium" />
+                                    <TextBlock Text="TERRA RESEARCH COMMISSION / BOOT SEQUENCE" Foreground="#6A6D64"
+                                               FontSize="10" Margin="0,5,0,0" />
+                                    <UniformGrid Columns="6" Rows="2" Margin="0,9,0,0" Width="108" Height="10">
+                                        <Border Background="#4D6BFE" Margin="0,0,3,2" />
+                                        <Border Background="#4D6BFE" Margin="0,0,3,2" />
+                                        <Border Background="#4D6BFE" Margin="0,0,3,2" />
+                                        <Border Background="#2E302D" Margin="0,0,3,2" />
+                                        <Border Background="#2E302D" Margin="0,0,3,2" />
+                                        <Border Background="#2E302D" Margin="0,0,3,2" />
+                                        <Border Background="#4D6BFE" Margin="0,0,3,2" />
+                                        <Border Background="#4D6BFE" Margin="0,0,3,2" />
+                                        <Border Background="#2E302D" Margin="0,0,3,2" />
+                                        <Border Background="#2E302D" Margin="0,0,3,2" />
+                                        <Border Background="#2E302D" Margin="0,0,3,2" />
+                                        <Border Background="#2E302D" Margin="0,0,3,2" />
+                                    </UniformGrid>
+                                </StackPanel>
+                            </Grid>
+                            <TextBlock Text="OVER THE FRONTIER / INTO THE FRONT" Foreground="#F5F5F0" FontSize="13"
+                                       FontWeight="Medium" FontFamily="Arial Narrow, Arial"
+                                       Margin="0,24,0,0" />
+                        </StackPanel>
+
+                        <!-- 实时状态 + 迷你实时日志（左下角） -->
+                        <StackPanel VerticalAlignment="Bottom" HorizontalAlignment="Left" Margin="24,0,24,22" MaxWidth="720">
+                            <TextBlock x:Name="LoadingText" Text="正在启动..." Foreground="#F5F5F0" FontSize="13.5"
+                                       FontWeight="SemiBold" TextWrapping="Wrap" />
+                            <TextBlock x:Name="LoadingDetail" Text="" Foreground="#8A8D88" FontSize="11"
+                                       Margin="0,3,0,0" TextWrapping="Wrap" MaxWidth="680" />
+                            <Border Background="#0A0B0A" BorderBrush="#2A2B27" BorderThickness="1" Margin="0,10,0,0"
+                                    Padding="10,6" MaxHeight="96">
+                                <ScrollViewer x:Name="LoadingLogScroll" VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl x:Name="LoadingLogList" ItemsSource="{Binding LoadingLogLines}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Text}" Foreground="{Binding BootBrush}"
+                                                           FontFamily="Consolas, Microsoft YaHei UI" FontSize="10.5"
+                                                           TextWrapping="Wrap" Margin="0,0,0,2" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+
+        </DockPanel>
+    </Border>
+</Window>

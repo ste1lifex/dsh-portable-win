@@ -1,0 +1,42 @@
+# Your patch layer for this dsh profile, applied after every bundle layer:
+# a top-level YAML array of loader patch entries (id-targeted config
+# overrides, disables, and insert lists; `!!js` expressions allowed).
+
+# Perlica (佩丽卡) desktop pet: host half registers /api/dsh-pet-perlica/*
+# routes and projects session activity; the dsh.client half is discovered
+# from this entry and served to the browser automatically.
+- insert:
+    - id: pet-perlica
+      name: 'dsh-pet-perlica'
+
+# dsh-doc: fully local PDF/Office/OCR. runtimeDir is resolved at mount time
+# from DSH_HOME (set by start-dsh.ps1 / dsh.cmd), so the whole portable
+# folder can be moved to another path or machine without editing this file.
+- id: dsh-doc
+  config:
+    engine: python
+    runtimeDir: !!js "process.env.DSH_HOME + '/runtimes/dshdoc-runtime-win32-x64'"
+    maxFileBytes: 52428800
+    maxOutputChars: 32000
+    defaultOcr: true
+    defaultTableMode: accurate
+    defaultOutputFormat: md
+
+# dsh-computer-use-win: the bundle's own patch locates the MCP server with
+# `new URL('mcp/server.mjs', baseUrl)`, assuming baseUrl is the patch file's
+# directory. On DSH 0.1.5-rc.1 the Loader anchors baseUrl at the PROFILE
+# directory instead (see @deepseek-ai/dsh/lib/profile-boot-*.js), so it
+# resolved to profiles/web/mcp/server.mjs -> MODULE_NOT_FOUND, the stdio
+# server crash-looped, and no mcp__wincu__* tools ever appeared.
+# Patch semantics assign `config` wholesale (no deep merge), so the corrected
+# row repeats every key; args is re-anchored to the profile directory.
+- id: mcp-dsh-computer-use-win
+  config:
+    serverName: wincu
+    transport: stdio
+    command: !!js process.execPath
+    args:
+      - !!js "process.getBuiltinModule('node:url').fileURLToPath(new URL('node_modules/dsh-computer-use-win/mcp/server.mjs', baseUrl))"
+    toolCallTimeoutMs: 60000
+    failOnStartupError: false
+

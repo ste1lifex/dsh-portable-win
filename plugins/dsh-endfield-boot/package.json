@@ -1,0 +1,31 @@
+{
+  "name": "dsh-endfield-boot",
+  "version": "1.0.0",
+  "description": "ENDFIELD boot loading screen only — extracted from ymh0000123/dsh-theme-endfield (MIT). Plays the Endfield launcher boot plate (left signal-yellow progress rail + meter + ENDFIELD wordmark) on every DSH web page load, then fades out and removes itself. No other theme changes.",
+  "license": "MIT",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime"
+      ],
+      "platform": "web"
+    }
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml"
+  ],
+  "engines": {
+    "node": ">=18"
+  }
+}

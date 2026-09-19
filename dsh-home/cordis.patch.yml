@@ -1,0 +1,31 @@
+# Local Ollama model route for the portable Harness.
+- id: llm-pi-ai
+  config:
+    providers:
+      ollama-local:
+        displayName: Ollama Local
+        apiKeyEnv: OLLAMA_API_KEY
+        api: openai-completions
+        baseURL: http://127.0.0.1:11434/v1
+        models:
+          - id: qwen3.8-27b-uncensored-12k:latest
+            name: Qwen 3.8 27B Uncensored (Ollama)
+            contextWindow: 12288
+            maxTokens: 4096
+            reasoningEfforts: false
+      supercompute:
+        displayName: 国家超算平台 (Token Plan)
+        apiKeyEnv: SUPERCOMPUTE_API_KEY
+        api: openai-completions
+        baseURL: https://api.scnet.cn/api/llm/v1
+        models:
+          - id: DeepSeek-V4-Flash-0731
+            name: DeepSeek V4 Flash (超算0731版)
+            contextWindow: 1000000
+            maxTokens: 393216
+            reasoningEfforts:
+              high: high
+- id: agent-default-model
+  config:
+    provider: supercompute
+    model: DeepSeek-V4-Flash-0731

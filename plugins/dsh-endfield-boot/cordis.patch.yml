@@ -1,0 +1,4 @@
+# dsh-endfield-boot bundle patch
+- insert:
+    - id: endfield-boot
+      name: 'dsh-endfield-boot'

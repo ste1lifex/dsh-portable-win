@@ -1,0 +1,67 @@
+# =============================================================================
+#  DSH 便携版（Windows）发行仓库 .gitignore
+#
+#  约定：git 只放「骨架」—— 脚本 / 启动器源码 / 依赖清单与锁文件 / 插件源码 / 文档；
+#        运行时与离线缓存等大体积载荷走 GitHub Release 资产（见 PORTABLE-RELEASE.md），
+#        或者用 tools\fetch-node.ps1 自行下载重建。
+# =============================================================================
+
+# ---- 大体积载荷（Release 资产 / 自行下载）----
+/node/
+/store/
+/vendor/
+/dsh-home/runtimes/
+DshDesktop.exe
+/dist/
+*.zip
+*.7z
+
+# ---- pnpm 重建产物 ----
+app-npm/node_modules/
+dsh-home/profiles/node_modules/
+dsh-home/profiles/*/node_modules/
+
+# ---- .NET 构建产物 ----
+launcher/**/bin/
+launcher/**/obj/
+launcher/publish/
+launcher/publish-desktop/
+
+# ---- 密钥（绝不入库）----
+app-npm/.env
+**/.env
+!.env.example
+dsh-home/.credentials.yaml
+
+# ---- 本机运行态数据（各机器独立）----
+dsh-home/sessions/
+dsh-home/storages/
+dsh-home/attachments/
+dsh-home/webview2-data/
+dsh-home/skin-center/
+dsh-home/skins/
+dsh-home/task-board/
+dsh-home/dsh-usage/
+dsh-home/dsh-session-archive/
+dsh-home/llm-deepseek/
+dsh-home/.repair-backups/
+dsh-home/.anonymous-user-id
+dsh-home/pet.json
+dsh-home/profiles/web/.dsh-module-fallback
+dsh-home/profiles/web/cordis.patch.yml.bak-plugin-manager
+
+# ---- 运行产物 ----
+logs/
+backups/
+node_modules/
+dsh.pid
+*.invalid-*
+*.log
+
+# ---- 编辑器 / 系统 ----
+Thumbs.db
+Desktop.ini
+*.tmp
+.vs/
+.idea/
+.vscode/

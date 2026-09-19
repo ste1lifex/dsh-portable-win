@@ -1,0 +1,50 @@
+ui-onboarding:
+  welcomeNoticeVersion: 2026-08-13.1
+permission:
+  defaultPreset: danger-full-access
+
+# Local Ollama route (OpenAI-compatible API).
+llm-pi-ai:
+  providers:
+    ollama-local:
+      displayName: Ollama Local
+      apiKeyEnv: OLLAMA_API_KEY
+      api: openai-completions
+      baseURL: http://127.0.0.1:11434/v1
+      models:
+        - id: qwen3.8-27b-uncensored-12k:latest
+          name: Qwen 3.8 27B Uncensored (Ollama)
+          contextWindow: 12288
+          maxTokens: 4096
+          reasoningEfforts: false
+  supercompute:
+    displayName: 国家超算平台 (Token Plan)
+    apiKeyEnv: SUPERCOMPUTE_API_KEY
+    api: openai-completions
+    baseURL: https://api.scnet.cn/api/llm/v1
+    models:
+      - id: DeepSeek-V4-Flash-0731
+        name: DeepSeek V4 Flash (超算0731版)
+        contextWindow: 1000000
+        maxTokens: 393216
+        reasoningEfforts:
+          high: high
+
+# 默认模型（原：国家超算平台 supercompute / DeepSeek-V4-Flash-0731，注释保留备查）
+agent-default-model:
+  provider: deepseek-official
+  model: deepseek-flash
+  reasoningEffort: high
+# 换回 DeepSeek 官方 API 的 flash 模型
+#agent-default-model:
+#  provider: deepseek-official
+#  model: deepseek-v4-flash
+ui-theme:
+  preference: system
+pet:
+  visible: true
+  size: 160
+  right: 29
+  bottom: 93
+  petId: ouo-neko
+  enabled: false
