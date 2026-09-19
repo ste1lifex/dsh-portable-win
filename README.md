@@ -112,5 +112,6 @@ dsh-portable-win/
 
 ## 许可证
 
-本仓库以 **MIT** 发布（见 [`LICENSE`](LICENSE)）。DSH 本体与随包插件遵循各自许可证 ——
+本仓库以 **MIT** 发布（见 [`LICENSE`](LICENSE)）；随包与 Release 载荷内含的第三方组件见 [`NOTICE`](NOTICE)。
+DSH 本体与随包插件遵循各自许可证 ——
 上游 [deepseek-ai/deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) 为 MIT。
