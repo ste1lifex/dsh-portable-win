@@ -20,16 +20,17 @@
 | ✅ | **依赖可重建**：锁文件与清单在仓库里，`store\` 缺失时首启自动联网按锁文件重装 |
 | ❌ | 本仓库**不含** Node 运行时 / 离线缓存 / 预编译 exe —— 这些体积过大（数百 MB ~ 2GB），按 GitHub 约定放在 Release 资产里 |
 
-版本：`@deepseek-ai/dsh` **0.1.5-rc.2** · `@linxin666/dsh-web-all` **^0.3.24** ·
-`dsh-free-search` **0.4.32** · `dsh-pdf-reader` **^0.2.0** · `dsh-computer-use-win` **^0.1.2** ·
-`dsh-latex` **0.2.0** · Node **v24.19.0** · pnpm **11.19.0**
+版本：`@deepseek-ai/dsh` **0.2.0-rc.2** · `@linxin666/dsh-web-all` **^0.4.4** ·
+`dsh-free-search` **0.6.5** · `dsh-pdf-reader` **^0.2.0** · `dsh-computer-use-win` **^0.2.3** ·
+`dsh-latex` / `dsh-pet-perlica` / `dsh-endfield-boot`（本地插件，`link:` 随包）·
+Node **v24.19.0** · pnpm **11.19.0**
 
 ---
 
 ## 用法一：下载现成包（推荐给最终用户）
 
-1. 打开本仓库的 **Releases**，下载 `DSH-portable-0.1.5-rc.2-win-x64.zip`（约 700MB，含离线依赖缓存）。
-   校验：`SHA256 9F0D288C5EF06411EB3169910B2BA25C3DD17D0F7504F988710D346670AE3D00`
+1. 打开本仓库的 **Releases**，下载最新那份 `DSH-portable-<版本>-win-x64.zip`
+   （**单包**，已内含离线依赖缓存与全部载荷；资产名、体积与 SHA256 **以 Release 说明为准**，本文件不写死）。
 2. 解压到任意目录（例如 `D:\DSH`，路径尽量别有特殊字符；**整个文件夹可随意搬动**）。
 3. 任选一个入口启动：
    - 双击 **`DshDesktop.exe`** —— 原生窗口（内嵌 WebView2），带状态/启停/更新/日志/余额；

@@ -11,16 +11,18 @@
 | | 内容 | 体积 |
 | --- | --- | --- |
 | **仓库（骨架）** | 启动/停止/升级/回滚脚本、`launcher\` 全部 C# 源码与构建脚本、`app-npm` 与 `profiles\web` 的 `package.json` + `pnpm-lock.yaml`、本地插件源码、图标、文档 | ~4 MB |
-| **Release 资产** | 预编译 `DshDesktop.exe`、`node\`（Node v24.19.0 + pnpm 11.19.0）、`store\`（pnpm 离线缓存，含全部 win32-x64 平台包）、`dsh-home\runtimes\latex-runtime-win32-x64\`（Tectonic 0.17.0 引擎 + 预热好的 TeX 资源缓存）、`vendor\webview2\`（可选，WebView2 离线安装器）、`vendor\native-fixups\`（pnpm 无法重建的原生/下载产物） | 解压后 ~1.6 GB，**zip 700MB+** |
+| **Release 资产** | 预编译 `DshDesktop.exe`、`node\`（Node v24.19.0 + pnpm 11.19.0）、`store\`（pnpm 离线缓存，含全部 win32-x64 平台包）、`dsh-home\runtimes\latex-runtime-win32-x64\`（Tectonic 0.17.0 引擎 + 预热好的 TeX 资源缓存）、`vendor\webview2\`（可选，WebView2 离线安装器）、`vendor\native-fixups\`（pnpm 无法重建的原生/下载产物） | 解压后 ~2.0 GB，**zip ~760 MB** |
 
 GitHub 单文件上限 100 MB，`node.exe`、离线缓存等必然超限，所以**载荷一律走 Release 资产**；
 仓库保持轻量，clone 后也能靠 `tools\fetch-node.ps1` + 联网重建依赖跑起来。
 
-当前发布资产：`DSH-portable-0.1.5-rc.2-win-x64.zip`（700.5 MB）
-`SHA256 9F0D288C5EF06411EB3169910B2BA25C3DD17D0F7504F988710D346670AE3D00`
-—— 已做**独立副本首启验证**：解压到全新目录、独立端口启动，依赖从包内 `store\`
-**离线重建成功（reused 213 / downloaded 0）**，`dsh --version` = `0.1.5-rc.2`，
-带 token 地址 HTTP 200 / 裸地址 401（认证生效），六个插件全部就位。
+当前发布资产（**以 Release 说明为准，这里只在每次发布时更新这一段**）：
+`DSH-portable-0.2.0-rc.2-win-x64.zip`（760.1 MB）
+`SHA256 262005756BC7898A2E286B51F6AD5862E64D0B0FF25B13BFCB3842D0189E5A0C`
+—— 已做**独立副本离线重建验证**：解压到全新目录后，`app-npm` 与 profile 两处依赖全部从包内 `store\`
+**纯离线重建成功（app-npm reused 597 / profile reused 47，downloaded 0）**，三个 `link:` 本地插件
+（`dsh-latex` / `dsh-pet-perlica` / `dsh-endfield-boot`）在搬移后自动重连，核心 `@deepseek-ai/dsh` = `0.2.0-rc.2`。
+资产文件清单**不含** `.env`、凭据、会话与 WebView2 数据。
 
 ## 二、怎么组装一份完整便携包（维护者）
 
