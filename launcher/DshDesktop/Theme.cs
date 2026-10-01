@@ -78,6 +78,10 @@ internal static class DsTheme
         ("BadgeGreenFg",       0xFF34D399, 0xFF15803D),
         ("BadgeAmberBg",       0xFF2E2510, 0xFFFEF3C7),
         ("BadgeAmberFg",       0xFFFBBF24, 0xFFB45309),
+        // 本地 link: 插件：随 DSH 目录一起升级，没有 npm 版本可比较。
+        // 用蓝色信息态，避免灰色“离线”读起来像插件没跑起来。
+        ("BadgeBlueBg",        0xFF10243A, 0xFFDBEAFE),
+        ("BadgeBlueFg",        0xFF60A5FA, 0xFF1D4ED8),
         // 文本选择与右键菜单
         ("SelectionBg",        0x664D6BFE, 0x664D6BFE),
         ("MenuBg",             0xFF232324, 0xFFFFFFFF),
@@ -148,6 +152,8 @@ internal static class DsTheme
     public static Brush BadgeGreenBg => Shared("BadgeGreenBg");
     public static Brush BadgeAmberFg => Shared("BadgeAmberFg");
     public static Brush BadgeAmberBg => Shared("BadgeAmberBg");
+    public static Brush BadgeBlueFg => Shared("BadgeBlueFg");
+    public static Brush BadgeBlueBg => Shared("BadgeBlueBg");
     public static Brush BadgeGrayFg => Shared("BadgeNeutralFg");
     public static Brush BadgeGrayBg => Shared("BadgeNeutralBg");
     public static Brush Accent => Shared("AccentBrush");

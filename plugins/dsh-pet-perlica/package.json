@@ -1,7 +1,7 @@
 {
   "name": "dsh-pet-perlica",
   "description": "Perlica (佩丽卡) desktop pet for the DSH web GUI: a floating Codex-style sprite that reacts to agent activity (idle/waiting/working/failed/done), draggable with position memory.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -14,6 +14,9 @@
   ],
   "license": "MIT",
   "dsh": {
+    "engines": {
+      "dsh": ">=0.1.0-rc.6 <0.3.0"
+    },
     "client": {
       "platform": "web",
       "inject": [

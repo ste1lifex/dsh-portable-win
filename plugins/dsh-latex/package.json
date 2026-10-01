@@ -1,0 +1,72 @@
+{
+  "name": "dsh-latex",
+  "version": "0.2.0",
+  "description": "Self-contained LaTeX for DeepSeek Harness: compile .tex sources to PDF with a pinned Tectonic engine, no system TeX distribution, offline-capable after one warm-up, and zero runtime npm dependencies.",
+  "license": "MIT",
+  "homepage": "https://github.com/ste1lifex/dsh-latex#readme",
+  "bugs": {
+    "url": "https://github.com/ste1lifex/dsh-latex/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ste1lifex/dsh-latex.git"
+  },
+  "type": "module",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "README.zh-CN.md",
+    "INSTALL.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    "NOTICE",
+    "docs",
+    "scripts"
+  ],
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "engines": {
+      "dsh": ">=0.1.0-rc.6 <0.3.0"
+    }
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh-plugin",
+    "latex",
+    "tex",
+    "tectonic",
+    "pdf",
+    "typesetting",
+    "math"
+  ],
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-llm": "^0.1.0-rc.6 || ^0.2.0-rc.1",
+    "@deepseek-ai/dsh-tools": "^0.1.0-rc.6 || ^0.2.0-rc.1"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-llm": {
+      "optional": true
+    }
+  },
+  "scripts": {
+    "runtime:fetch": "node scripts/fetch-runtime.mjs",
+    "runtime:verify": "node scripts/verify-runtime.mjs",
+    "runtime:warm": "node scripts/warm-cache.mjs",
+    "test": "node --test test/unit",
+    "test:integration": "node --test test/integration",
+    "test:all": "node --test test/unit test/integration"
+  }
+}

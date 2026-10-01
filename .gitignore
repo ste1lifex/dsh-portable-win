@@ -21,11 +21,16 @@ app-npm/node_modules/
 dsh-home/profiles/node_modules/
 dsh-home/profiles/*/node_modules/
 
+# ---- 插件 fetch 脚本的下载暂存（引擎本体在 dsh-home/runtimes/）----
+plugins/*/.dsh-runtime/
+
 # ---- .NET 构建产物 ----
 launcher/**/bin/
 launcher/**/obj/
 launcher/publish/
 launcher/publish-desktop/
+# 重建时被“改名留存”的旧桌面版映像（正在运行的 exe 无法直接覆盖）
+DshDesktop.exe.old-*
 
 # ---- 密钥（绝不入库）----
 app-npm/.env
@@ -37,8 +42,10 @@ dsh-home/.credentials.yaml
 dsh-home/sessions/
 dsh-home/storages/
 dsh-home/attachments/
+dsh-home/cache/
 dsh-home/webview2-data/
 dsh-home/skin-center/
+dsh-home/skin-center-active.json
 dsh-home/skins/
 dsh-home/task-board/
 dsh-home/dsh-usage/
@@ -49,14 +56,23 @@ dsh-home/.anonymous-user-id
 dsh-home/pet.json
 dsh-home/profiles/web/.dsh-module-fallback
 dsh-home/profiles/web/cordis.patch.yml.bak-plugin-manager
+# 语音输入插件按需下载的 SenseVoice 模型（230 MB，用时自动重下）
+dsh-home/speech-to-text/
+# 一次性设置迁移产物
+dsh-home/settings.yaml.imported
+dsh-home/dsh-web-settings-legacy-import.json
 
 # ---- 运行产物 ----
 logs/
 backups/
+# 打补丁前留的 .orig 备份目录（例如 .patch-originals-20261001/）
+.patch-originals-*/
 node_modules/
 dsh.pid
 *.invalid-*
 *.log
+# dsh-pdf-reader 把高清区域渲染缓存在会话工作目录下
+.dsh-pdf-reader/
 
 # ---- 编辑器 / 系统 ----
 Thumbs.db

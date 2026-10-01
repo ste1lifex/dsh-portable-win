@@ -6,8 +6,13 @@ Copyright (c) 2026 Stellifex
 
 * DeepSeek Harness (DSH) —— MIT License, Copyright (c) 2026 DeepSeek
   https://github.com/deepseek-ai/deepseek-harness
-* 随包 DSH 插件（@linxin666/dsh-web-all、dsh-free-search、dsh-doc、
-  dsh-computer-use-win 等）—— 见各自 npm 包内 LICENSE
+* 随包 DSH 插件（@linxin666/dsh-web-all、dsh-pdf-reader、dsh-free-search、
+  dsh-computer-use-win、dsh-latex 等）—— 见各自包内 LICENSE / NOTICE
+* Tectonic（`dsh-latex` 使用的 LaTeX 引擎，Release 载荷与首启下载中提供，
+  本仓库不分发其源码）—— MIT License, Copyright (c) Tectonic contributors
+  https://github.com/tectonic-typesetting/tectonic
+* TeX Live 资源（由 Tectonic 按需拉取并缓存，各自遵循其 TeX Live 包许可证）
+  https://tug.org/texlive/
 * Node.js（Release 载荷内含）—— MIT License 及其第三方许可
   https://nodejs.org
 * Microsoft Edge WebView2 Runtime（用户本机组件，不随包分发）—— Microsoft 许可条款

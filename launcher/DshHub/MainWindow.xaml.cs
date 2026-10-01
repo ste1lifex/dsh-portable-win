@@ -296,9 +296,70 @@ public partial class MainWindow : Window
     private string PidFile => Path.Combine(_root, "dsh.pid");
     private string LogDir => Path.Combine(_root, "logs");
     private string BackupDir => Path.Combine(_root, "backups");
-    private string OcrRuntimeDir => Path.Combine(_root, "dsh-home", "runtimes", "dshdoc-runtime-win32-x64");
+
+    // 说明：dsh-pdf-reader 为宿主侧插件，不自带运行时目录，依赖系统 Python 3 + pymupdf。
 
     private string ScriptPath(string name) => Path.Combine(_root, name);
+
+    /// <summary>
+    /// 按优先级给出待探测的 Python 解释器：虚拟环境（%VIRTUAL_ENV%\Scripts\python.exe）
+    /// 优先，其后依次是 PATH 上的 python、python3、py。
+    /// </summary>
+    private static IEnumerable<string> PythonInterpreterCandidates()
+    {
+        var venv = Environment.GetEnvironmentVariable("VIRTUAL_ENV");
+        if (!string.IsNullOrWhiteSpace(venv))
+        {
+            var venvPython = Path.Combine(venv, "Scripts", "python.exe");
+            if (File.Exists(venvPython)) yield return venvPython;
+        }
+        yield return "python";
+        yield return "python3";
+        yield return "py";
+    }
+
+    /// <summary>
+    /// PDF 阅读依赖探针：依次用候选解释器执行 <c>python -c "import pymupdf"</c>，
+    /// 只有退出码为 0 才算就绪；单个候选 10 秒超时，超时或异常都不外抛。
+    /// </summary>
+    private static async Task<bool> ProbePdfReaderAsync()
+    {
+        foreach (var python in PythonInterpreterCandidates())
+        {
+            try
+            {
+                var psi = new ProcessStartInfo(python)
+                {
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
+                psi.ArgumentList.Add("-c");
+                psi.ArgumentList.Add("import pymupdf");
+
+                using var proc = new Process { StartInfo = psi };
+                if (!proc.Start()) continue;
+
+                var stdout = proc.StandardOutput.ReadToEndAsync();
+                var stderr = proc.StandardError.ReadToEndAsync();
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                try
+                {
+                    await proc.WaitForExitAsync(cts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    try { proc.Kill(entireProcessTree: true); } catch { /* 可能已自行退出 */ }
+                    return false;
+                }
+                await Task.WhenAll(stdout, stderr);
+                if (proc.ExitCode == 0) return true;
+            }
+            catch { /* 该候选不可用，继续尝试下一个 */ }
+        }
+        return false;
+    }
 
     // =====================================================================
     //  Status
@@ -815,21 +876,22 @@ public partial class MainWindow : Window
     {
         _coreLocal = ReadJsonVersion(CorePkgJson) ?? "?";
         _webUiLocal = ReadJsonVersion(Path.Combine(ProfilesWeb, "node_modules", "@linxin666", "dsh-web-all", "package.json")) ?? "?";
-        _docLocal = ReadJsonVersion(Path.Combine(ProfilesWeb, "node_modules", "dsh-doc", "package.json")) ?? "?";
-        bool ocrOk = Directory.Exists(OcrRuntimeDir);
+        // 原 dsh-doc 已移除，这一行现在对应 dsh-pdf-reader（变量名沿用，避免无谓改动）。
+        _docLocal = ReadJsonVersion(Path.Combine(ProfilesWeb, "node_modules", "dsh-pdf-reader", "package.json")) ?? "?";
+        bool ocrOk = await ProbePdfReaderAsync();
 
         // local rows first
         RowCoreVer.Text = _coreLocal;
         RowWebUiVer.Text = _webUiLocal;
         RowDocVer.Text = _docLocal;
-        RowOcrText.Text = ocrOk ? "本地 OCR 运行时就绪" : "缺失（更新后可按提示重新下载）";
+        RowOcrText.Text = ocrOk ? "PDF 阅读依赖就绪（Python + pymupdf）" : "缺失（需要 Python 3 + pymupdf）";
         SetBadge(RowOcrBadge, RowOcrBadgeText, ocrOk ? "就绪" : "缺失",
             ocrOk ? BadgeGreenFg : BadgeAmberFg, ocrOk ? BadgeGreenBg : BadgeAmberBg);
 
         // latest from npm (background)
         var coreLatest = await GetNpmLatestAsync("@deepseek-ai/dsh");
         var webUiLatest = await GetNpmLatestAsync("@linxin666/dsh-web-all");
-        var docLatest = await GetNpmLatestAsync("dsh-doc");
+        var docLatest = await GetNpmLatestAsync("dsh-pdf-reader");
 
         if (!Dispatcher.CheckAccess())
         {

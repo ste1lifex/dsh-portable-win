@@ -25,7 +25,7 @@ $pidFile = Join-Path $root 'dsh.pid'
 $logDir = Join-Path $root 'logs'
 $bin = Join-Path $app 'node_modules\@deepseek-ai\dsh\lib\bin.js'
 $webProfileDir = Join-Path $bundledHome 'profiles\web'
-$startupFallbackPatch = Join-Path $logDir 'startup-fallback.patch.yml'
+$latexFallbackPatch = Join-Path $logDir 'startup-fallback-latex.patch.yml'
 
 function Get-MissingProfileDependencies {
     param([string]$ProfileDir)
@@ -113,25 +113,81 @@ function Repair-WebProfileDependencies {
     Write-Host "Web Profile 插件依赖恢复完成。" -ForegroundColor Green
 }
 
-function Initialize-DshDocRuntime {
+function Write-PdfReaderDependencyStatus {
     param([string]$ProfileDir)
 
-    $dshDocDir = Join-Path $ProfileDir 'node_modules\dsh-doc'
-    $dshDocManifest = Join-Path $dshDocDir 'package.json'
-    if (-not (Test-Path -LiteralPath $dshDocManifest -PathType Leaf)) { return $null }
+    # dsh-pdf-reader 不捆绑任何运行时：它调用系统 Python 3 + pymupdf 来抽取
+    # 文本层并把图/表/公式渲染成高清 PNG。这里只报告依赖状态，绝不影响启动：
+    # 依赖缺失时插件自己会返回可操作的提示，让 agent 去装。
+    $readerManifest = Join-Path $ProfileDir 'node_modules\dsh-pdf-reader\package.json'
+    if (-not (Test-Path -LiteralPath $readerManifest -PathType Leaf)) { return }
 
-    $runtimeDir = Join-Path $bundledHome 'runtimes\dshdoc-runtime-win32-x64'
-    $pythonExe = Join-Path $runtimeDir 'python\python.exe'
-    $verifyScript = Join-Path $dshDocDir 'scripts\verify-runtime-win32-x64.mjs'
-    $fetchScript = Join-Path $dshDocDir 'scripts\fetch-runtime-win32-x64.mjs'
+    # 解释器优先级与插件 runtime.js 保持一致：$VIRTUAL_ENV -> PATH -> 无。
+    $candidates = @()
+    if ($env:VIRTUAL_ENV) { $candidates += (Join-Path $env:VIRTUAL_ENV 'Scripts\python.exe') }
+    $candidates += @('python', 'python3', 'py')
+
+    foreach ($candidate in $candidates) {
+        if ($candidate -like '*\*') {
+            if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
+            $exe = $candidate
+        }
+        else {
+            $cmd = Get-Command $candidate -ErrorAction SilentlyContinue
+            if (-not $cmd) { continue }
+            $exe = $cmd.Source
+        }
+
+        # 原生程序往 stderr 写东西时 Windows PowerShell 会抛错；探测失败属于
+        # 预期路径，不能让脚本级 ErrorActionPreference=Stop 中断启动。
+        $oldErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = 'Continue'
+            & $exe -c 'import pymupdf' *> $null
+            $readerReady = ($LASTEXITCODE -eq 0)
+        }
+        catch {
+            $readerReady = $false
+        }
+        finally {
+            $ErrorActionPreference = $oldErrorActionPreference
+        }
+
+        if ($readerReady) {
+            Write-Host "dsh-pdf-reader 依赖就绪：$exe（pymupdf 可导入）。" -ForegroundColor Green
+            return
+        }
+    }
+
+    Write-Host "[提示] dsh-pdf-reader 缺少 Python 3 + pymupdf，仅 PDF 工具受影响。" -ForegroundColor Yellow
+    Write-Host "       安装后重启即可：python -m pip install pymupdf" -ForegroundColor Yellow
+}
+
+function Initialize-LatexRuntime {
+    param([string]$ProfileDir)
+
+    # dsh-latex ships no engine: the pinned Tectonic binary is fetched into
+    # dsh-home\runtimes so the whole folder stays movable and the plugin
+    # repository stays a few hundred kilobytes. A missing engine must not stop
+    # the harness, so failures disable only this plugin for the current launch.
+    $latexDir = Join-Path $ProfileDir 'node_modules\dsh-latex'
+    $latexManifest = Join-Path $latexDir 'package.json'
+    if (-not (Test-Path -LiteralPath $latexManifest -PathType Leaf)) { return $null }
+
+    # This portable distribution targets Windows x64, which is also what
+    # dsh-latex's own locateRuntime() derives from process.platform/process.arch.
+    $runtimeDir = Join-Path $bundledHome 'runtimes\latex-runtime-win32-x64'
+    $engineExe = Join-Path $runtimeDir 'tectonic.exe'
+    $verifyScript = Join-Path $latexDir 'scripts\verify-runtime.mjs'
+    $fetchScript = Join-Path $latexDir 'scripts\fetch-runtime.mjs'
+    $warmScript = Join-Path $latexDir 'scripts\warm-cache.mjs'
 
     $runtimeValid = $false
-    if ((Test-Path -LiteralPath $pythonExe -PathType Leaf) -and
+    if ((Test-Path -LiteralPath $engineExe -PathType Leaf) -and
         (Test-Path -LiteralPath $verifyScript -PathType Leaf)) {
-        # Windows PowerShell turns a native program's stderr into an error
-        # record.  With the script-wide ErrorActionPreference=Stop, an
-        # expected verification failure would abort startup here before the
-        # invalid runtime can be quarantined and repaired below.
+        # An expected verification failure must not abort startup under the
+        # script-wide ErrorActionPreference=Stop, because Windows PowerShell
+        # turns a native program's stderr into an error record.
         $oldErrorActionPreference = $ErrorActionPreference
         try {
             $ErrorActionPreference = 'Continue'
@@ -142,34 +198,63 @@ function Initialize-DshDocRuntime {
             $ErrorActionPreference = $oldErrorActionPreference
         }
     }
-    if ($runtimeValid) { return $null }
 
-    if (Test-Path -LiteralPath $runtimeDir) {
-        $invalidDir = "$runtimeDir.invalid-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
-        Move-Item -LiteralPath $runtimeDir -Destination $invalidDir
-        Write-Host "[提示] 已隔离校验失败的 dsh-doc 运行时：$invalidDir" -ForegroundColor Yellow
-    }
+    if (-not $runtimeValid) {
+        if (Test-Path -LiteralPath $runtimeDir) {
+            $invalidDir = "$runtimeDir.invalid-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+            Move-Item -LiteralPath $runtimeDir -Destination $invalidDir
+            Write-Host "[提示] 已隔离校验失败的 LaTeX 运行时：$invalidDir" -ForegroundColor Yellow
+        }
 
-    $downloadDisabled = $env:DSH_SKIP_RUNTIME_DOWNLOAD -eq '1'
-    if (-not $downloadDisabled -and (Test-Path -LiteralPath $fetchScript -PathType Leaf)) {
-        Write-Host "dsh-doc 本地运行时缺失，正在自动下载并校验..." -ForegroundColor Cyan
-        & $nodeExe $fetchScript $runtimeDir 2>&1 | ForEach-Object { Write-Host $_ }
-        if ($LASTEXITCODE -eq 0 -and (Test-Path -LiteralPath $pythonExe -PathType Leaf)) {
-            Write-Host "dsh-doc 本地运行时恢复完成。" -ForegroundColor Green
-            return $null
+        $downloadDisabled = $env:DSH_SKIP_RUNTIME_DOWNLOAD -eq '1'
+        if (-not $downloadDisabled -and (Test-Path -LiteralPath $fetchScript -PathType Leaf)) {
+            Write-Host "dsh-latex 引擎缺失，正在自动下载并校验 Tectonic..." -ForegroundColor Cyan
+            & $nodeExe $fetchScript $runtimeDir 2>&1 | ForEach-Object { Write-Host $_ }
+            if ($LASTEXITCODE -eq 0 -and (Test-Path -LiteralPath $engineExe -PathType Leaf)) {
+                Write-Host "dsh-latex 引擎恢复完成。" -ForegroundColor Green
+                $runtimeValid = $true
+            }
         }
     }
 
-    # dsh-doc is optional. A missing external runtime must not prevent the
-    # desktop shell and every unrelated plugin from starting.
-    Set-Content -LiteralPath $startupFallbackPatch -Encoding UTF8 -Value @(
-        '# Generated by start-dsh.ps1; safe to delete.',
-        '- id: dsh-doc',
-        '  disabled: true'
-    )
-    Write-Host "[警告] dsh-doc 运行时恢复失败，本次启动将临时禁用文档/OCR 插件。" -ForegroundColor Yellow
-    Write-Host "       修复网络后重启，脚本会自动重试；其他插件和对话不受影响。" -ForegroundColor Yellow
-    return $startupFallbackPatch
+    if (-not $runtimeValid) {
+        Set-Content -LiteralPath $latexFallbackPatch -Encoding UTF8 -Value @(
+            '# Generated by start-dsh.ps1; safe to delete.',
+            '- id: dsh-latex',
+            '  disabled: true'
+        )
+        Write-Host "[警告] dsh-latex 引擎恢复失败，本次启动将临时禁用 LaTeX 工具。" -ForegroundColor Yellow
+        Write-Host "       修复网络后重启，脚本会自动重试；其他插件和对话不受影响。" -ForegroundColor Yellow
+        return $latexFallbackPatch
+    }
+
+    # 首次装好引擎后顺手预热资源集，让"离线编译"开箱可用。
+    # 失败只提示：真正编译时会按需联网补齐。
+    #
+    # minimal 只够纯英文文档；中文文档（ctex/xeCJK/Fandol）和常用表格宏包
+    # 需要 chinese / common。逐层叠加很便宜（实测 minimal 约 5 分钟，
+    # chinese 与 common 各再约 1 分钟），却决定了"不联网能不能编译中文报告"。
+    $cacheDir = Join-Path $runtimeDir 'cache'
+    if (-not (Test-Path -LiteralPath $cacheDir -PathType Container) -and
+        (Test-Path -LiteralPath $warmScript -PathType Leaf)) {
+        Write-Host "正在预热 LaTeX 资源缓存（首次约需 5-7 分钟，仅本次启动需要）..." -ForegroundColor Cyan
+        $oldErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = 'Continue'
+            foreach ($latexProfile in @('minimal', 'chinese', 'common')) {
+                & $nodeExe $warmScript "--profile=$latexProfile" "--runtime=$runtimeDir" 2>&1 |
+                    Where-Object { $_ -notmatch '^\s*$' } | ForEach-Object { Write-Host $_ }
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Host "[提示] LaTeX 资源预热（$latexProfile）未完成；首次编译会按需联网补齐。" -ForegroundColor Yellow
+                }
+            }
+        }
+        finally {
+            $ErrorActionPreference = $oldErrorActionPreference
+        }
+    }
+
+    return $null
 }
 
 function Test-LocalTcpPort {
@@ -194,7 +279,7 @@ if (-not (Test-Path $nodeExe)) {
 }
 
 New-Item -ItemType Directory -Force -Path $logDir | Out-Null
-Remove-Item -LiteralPath $startupFallbackPatch -Force -ErrorAction SilentlyContinue
+Remove-Item -LiteralPath $latexFallbackPatch -Force -ErrorAction SilentlyContinue
 
 # ---- 首次运行/链接损坏：重建 pnpm 依赖 ----
 # pnpm 的 node_modules 包含符号链接。Git for Windows 在 core.symlinks=false 时会把
@@ -243,9 +328,14 @@ try {
     exit 1
 }
 
-# 插件包之外的额外运行时由各插件单独自检。dsh-doc 的 Python/OCR
-# 运行时丢失时自动下载并校验；离线恢复失败则仅对本次启动禁用 dsh-doc。
-$optionalStartupPatch = Initialize-DshDocRuntime $webProfileDir
+# 插件包之外的额外运行时只由 dsh-latex 自检：Tectonic 引擎丢失时自动下载并校验，
+# 离线恢复失败则仅对本次启动禁用该插件（--patch 可重复，每个插件一份兜底补丁）。
+# dsh-pdf-reader 不捆绑运行时，但它依赖系统 Python 3 + pymupdf：这里只报告状态，
+# 不阻止启动（依赖缺失只影响 PDF 工具，插件会给出可操作的提示）。
+$startupFallbackPatches = @()
+$latexFallback = Initialize-LatexRuntime $webProfileDir
+if ($latexFallback) { $startupFallbackPatches += $latexFallback }
+Write-PdfReaderDependencyStatus $webProfileDir
 
 # 旧便携包把 profiles/node_modules 作为真实目录提交到 Git，但新版 DSH 要求
 # 自己管理该目录下的 Junction。首次启动时保留一份可恢复备份并让 DSH 重建。
@@ -331,8 +421,8 @@ $stderr = Join-Path $logDir 'dsh-web.err.log'
 # 让核心打开带有本次进程认证 token 的 URL。升级到开启 Web 认证的核心后，
 # 包装脚本自行打开裸地址会直接收到 401。
 $nodeArgs = @($bin, 'web')
-if ($optionalStartupPatch) {
-    $nodeArgs += @('--patch', $optionalStartupPatch)
+foreach ($fallbackPatch in $startupFallbackPatches) {
+    $nodeArgs += @('--patch', $fallbackPatch)
 }
 $nodeArgs += @('--port', "$Port")
 if ($NoOpen) { $nodeArgs += '--no-open' }

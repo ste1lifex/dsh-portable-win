@@ -39,6 +39,10 @@ public partial class MainWindow : Window
     private bool _stoppingForExit;
     private bool _webViewReady;
     private int _navigationRequest;
+    /// <summary>认证失败后自动重启服务的次数（上限 1，避免 401 → 重启 → 401 循环）。</summary>
+    private int _authRecoveryAttempts;
+    /// <summary>最近一次被判为未认证的地址，用来判断重新取到的 token 是否已经换过。</summary>
+    private string? _unauthorizedUrl;
     // 外部链接去重：NewWindowRequested 与 NavigationStarting 可能对同一链接各触发一次，
     // 用短时间窗内同 URL 只开一次，避免弹两个相同标签页。
     private readonly HashSet<string> _openedExternally = new(StringComparer.OrdinalIgnoreCase);
@@ -59,6 +63,7 @@ public partial class MainWindow : Window
     private static (string fg, string bg) BadgeGreen => ("BadgeGreenFg", "BadgeGreenBg");
     private static (string fg, string bg) BadgeAmber => ("BadgeAmberFg", "BadgeAmberBg");
     private static (string fg, string bg) BadgeGray => ("BadgeNeutralFg", "BadgeNeutralBg");
+    private static (string fg, string bg) BadgeBlue => ("BadgeBlueFg", "BadgeBlueBg");
 
     /// <summary>主日志已写入的行数（行数多了会从头丢弃，这个只用于显示）。</summary>
     private int _logLineCount;
@@ -369,14 +374,14 @@ public partial class MainWindow : Window
         foreach (var p in _core.Plugins)
             AppendPluginRow(p);
 
-        if (_core.OcrReady)
+        if (_core.PdfReaderReady)
         {
-            RowOcrText.Text = "本地 OCR 运行时就绪";
+            RowOcrText.Text = "PDF 阅读依赖就绪（Python + pymupdf）";
             SetBadge(RowOcrBadge, RowOcrBadgeText, "就绪", BadgeGreen);
         }
         else
         {
-            RowOcrText.Text = "缺失（更新后可按提示重新下载）";
+            RowOcrText.Text = "缺失（需要 Python 3 + pymupdf）";
             SetBadge(RowOcrBadge, RowOcrBadgeText, "缺失", BadgeAmber);
         }
 
@@ -418,6 +423,9 @@ public partial class MainWindow : Window
         {
             case DshBadge.Green: SetBadge(badge, badgeText, "已最新", BadgeGreen); break;
             case DshBadge.Amber: SetBadge(badge, badgeText, "发现新版本", BadgeAmber); break;
+            // 本地 link: 插件随 DSH 目录一起升级，没有 npm 版本可比较：
+            // 用蓝色信息态而不是灰色“离线”，免得看起来像插件没跑起来。
+            case DshBadge.Local: SetBadge(badge, badgeText, "本地", BadgeBlue); break;
             default: SetBadge(badge, badgeText, "离线", BadgeGray); break;
         }
 
@@ -856,20 +864,112 @@ public partial class MainWindow : Window
         if (!_webViewReady) return;
 
         // The server begins listening before redirected stdout necessarily
-        // reaches dsh-web.out.log. Wait briefly for the current process's
-        // launch token instead of racing ahead to the unauthenticated origin.
+        // reaches dsh-web.out.log, and a first boot (dependency repair, plugin
+        // install, engine warm-up) can take far longer than the token takes to
+        // appear after the port opens. Wait for the current process's launch
+        // token instead of racing ahead to the unauthenticated origin: the
+        // server answers a bare request with HTTP 401 ("dsh web authentication
+        // required"), WebView2 reports that response as a *successful*
+        // navigation, and the window is then left stuck on that text page.
         int request = ++_navigationRequest;
         string url = _core.Url;
-        for (int attempt = 0; attempt < 60; attempt++)
+        for (int attempt = 0; attempt < 120; attempt++)
         {
             if (request != _navigationRequest || !_webViewReady) return;
+            if (attempt > 0) await Task.Delay(250);
             url = _core.BrowserUrl;
             if (!string.Equals(url, _core.Url, StringComparison.Ordinal)) break;
-            await Task.Delay(100);
         }
 
-        if (request == _navigationRequest && _webViewReady)
-            WebView.CoreWebView2?.Navigate(url);
+        if (request != _navigationRequest || !_webViewReady) return;
+
+        // Without a launch token only the persisted dsh-auth cookie can
+        // authenticate the origin. Navigating bare without one is guaranteed to
+        // land on the 401 page, so recover a usable session instead.
+        if (string.Equals(url, _core.Url, StringComparison.Ordinal) && !await HasAuthCookieAsync())
+        {
+            await RecoverAuthenticationAsync("没有可用的启动 token，本地也没有认证 cookie");
+            return;
+        }
+
+        WebView.CoreWebView2?.Navigate(url);
+    }
+
+    /// <summary>
+    /// Whether the WebView2 profile holds a usable <c>dsh-auth-*</c> cookie for
+    /// this origin. The cookie name is derived from the authority only, so an
+    /// existing one authenticates the bare URL (HTTP 200) even across restarts.
+    /// </summary>
+    private async Task<bool> HasAuthCookieAsync()
+    {
+        try
+        {
+            if (WebView.CoreWebView2 is null) return false;
+            var cookies = await WebView.CoreWebView2.CookieManager.GetCookiesAsync(_core.Url);
+            foreach (var cookie in cookies)
+            {
+                if (!cookie.Name.StartsWith("dsh-auth-", StringComparison.Ordinal)) continue;
+                // The .NET projection maps a session cookie's epoch/-1 expiry to
+                // a DateTime at or before 1970; anything else is a persistent
+                // cookie that only counts while it has not expired.
+                var expires = cookie.Expires;
+                if (expires == default || expires.Year <= 1970) return true;
+                if (expires.ToUniversalTime() > DateTime.UtcNow) return true;
+            }
+        }
+        catch
+        {
+            // Cookie store unavailable: treat the cookie as absent and let the
+            // recovery path decide.
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Recover from an authentication rejection (HTTP 401/403). The launch token
+    /// only exists in the running server's stdout log, so the escalation order
+    /// is: a freshly re-read token URL, then the persisted cookie, then one
+    /// automatic service restart that mints a new token, then an explicit hint.
+    /// <paramref name="reason"/> is shown to the user.
+    /// </summary>
+    private async Task RecoverAuthenticationAsync(string reason)
+    {
+        if (!_webViewReady || WebView.CoreWebView2 is null) return;
+
+        ShowLoading("正在重新认证…", reason);
+
+        string tokenUrl = _core.BrowserUrl;
+        bool hasToken = !string.Equals(tokenUrl, _core.Url, StringComparison.Ordinal);
+        bool tokenChanged = hasToken && !string.Equals(tokenUrl, _unauthorizedUrl, StringComparison.Ordinal);
+        if (hasToken) _unauthorizedUrl = tokenUrl;
+
+        if (tokenChanged)
+        {
+            LogLine("[认证] 重新取到启动 token，重试导航。", DshLogKind.Warn);
+            WebView.CoreWebView2.Navigate(tokenUrl);
+            return;
+        }
+
+        if (await HasAuthCookieAsync())
+        {
+            LogLine("[认证] 检测到本地认证 cookie，改用裸地址重新加载。", DshLogKind.Warn);
+            WebView.CoreWebView2.Navigate(_core.Url);
+            return;
+        }
+
+        if (_authRecoveryAttempts < 1 && _core.IsRunning(out _))
+        {
+            _authRecoveryAttempts++;
+            LogLine("[认证] 启动 token 与本地认证 cookie 都不可用，重启服务以重新认证。", DshLogKind.Warn);
+            ShowLoading("正在重启服务以重新认证…", "会话记录不受影响，完成后会自动重新连接");
+            await _core.RestartAsync(noOpen: true);
+            _unauthorizedUrl = null;
+            if (_core.IsRunning(out _) && _webViewReady) NavigateToApp();
+            else ShowLoading("重新认证失败", "请点「重启」，或用「浏览器打开」");
+            return;
+        }
+
+        ShowLoading("认证失败", "请点「重启」重建会话，或用「浏览器打开」");
     }
 
     private void Reload_Click(object sender, RoutedEventArgs e)
@@ -888,10 +988,24 @@ public partial class MainWindow : Window
         }
     }
 
-    private void WebView_NavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
+    private async void WebView_NavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
     {
+        // 401/403 counts as a *successful* navigation for WebView2, so the auth
+        // rejection has to be read from the status code. Without this check the
+        // shell drops its loading overlay and leaves the server's bare 401 text
+        // ("dsh web authentication required") stuck in the window.
+        if (e.HttpStatusCode is 401 or 403)
+        {
+            _pageThemeValid = false;
+            RefreshThemeFromOs();
+            await RecoverAuthenticationAsync($"服务返回 HTTP {e.HttpStatusCode}");
+            return;
+        }
+
         if (e.IsSuccess)
         {
+            _authRecoveryAttempts = 0;
+            _unauthorizedUrl = null;
             FinishLoading();
         }
         else

@@ -9,18 +9,21 @@
     - id: pet-perlica
       name: 'dsh-pet-perlica'
 
-# dsh-doc: fully local PDF/Office/OCR. runtimeDir is resolved at mount time
-# from DSH_HOME (set by start-dsh.ps1 / dsh.cmd), so the whole portable
-# folder can be moved to another path or machine without editing this file.
-- id: dsh-doc
-  config:
-    engine: python
-    runtimeDir: !!js "process.env.DSH_HOME + '/runtimes/dshdoc-runtime-win32-x64'"
-    maxFileBytes: 52428800
-    maxOutputChars: 32000
-    defaultOcr: true
-    defaultTableMode: accurate
-    defaultOutputFormat: md
+# dsh-doc (local PDF/Office/Tesseract OCR) was REMOVED here, together with its
+# bundled CPython+Tesseract runtime and this config block. Its upstream
+# (Sqhao-O/dsh-docs) stopped at 0.1.1 on 2026-08-15 and its peerDependencies
+# pinned @deepseek-ai/dsh-tools to ^0.1.0-rc.6, so DSH 0.2.0-rc.2 refused the
+# bundle ("skipping profile bundle dsh-doc") and none of its dshdoc_* tools
+# ever appeared.
+#
+# It is replaced by dsh-pdf-reader (host-only, CPU-only, no config needed):
+# PyMuPDF extracts the text layer and renders figures/tables/formulas as
+# high-DPI PNG region crops into <workspace>\.dsh-pdf-reader, which the vision
+# model reads with read_image. It ships no runtime; the only external
+# requirement is a system Python 3 with `pymupdf` (see start-dsh.ps1, which
+# reports readiness on every launch). Its bundle patch adds the three tools
+# (pdf_scan / pdf_read_page / pdf_render_region) on its own, so nothing is
+# inserted in this file.
 
 # dsh-computer-use-win: the bundle's own patch locates the MCP server with
 # `new URL('mcp/server.mjs', baseUrl)`, assuming baseUrl is the patch file's
@@ -36,7 +39,93 @@
     transport: stdio
     command: !!js process.execPath
     args:
-      - !!js "process.getBuiltinModule('node:url').fileURLToPath(new URL('node_modules/dsh-computer-use-win/mcp/server.mjs', baseUrl))"
+      - !!js "process.getBuiltinModule('node:url').fileURLToPath(new
+        URL('node_modules/dsh-computer-use-win/mcp/server.mjs', baseUrl))"
     toolCallTimeoutMs: 60000
     failOnStartupError: false
 
+# dsh-latex: self-contained LaTeX (latex_health / latex_compile / latex_math).
+# The pinned Tectonic engine lives outside the plugin package, under
+# dsh-home\runtimes (the only bundled runtime left after dsh-doc's removal).
+# runtimeDir is resolved at mount time from DSH_HOME (set by
+# start-dsh.ps1 / dsh.cmd), so the whole portable folder can be moved to another
+# path or machine without editing this file. Patch semantics assign `config`
+# wholesale, so every key the bundle declared is repeated here.
+- id: dsh-latex
+  config:
+    runtimeDir: !!js "process.env.DSH_HOME + '/runtimes/latex-runtime-' +
+      process.platform + '-' + process.arch"
+    allowedLocalRoots: []
+    offline: false
+    allowShellEscape: false
+    defaultTimeoutMs: 180000
+- id: web-ui-pet
+  name: "@linxin666/dsh-pet"
+  config:
+    visible: true
+    size: 160
+    right: 29
+    bottom: 93
+    petId: ouo-neko
+    enabled: false
+- id: ui-settings-general
+  name: "@deepseek-ai/dsh-client-ui-settings-general"
+  config:
+    welcomeNoticeVersion: 2026-09-28.1
+
+# Model routes owned by the WEB profile. These rows used to live in the
+# home-level dsh-home/cordis.patch.yml, which is applied AFTER this file: an
+# entry's `config` there outranks this layer, so 设置 → 模型 refused every
+# llm-pi-ai write with "Configuration for \"llm-pi-ai\" is overridden by a home
+# patch or command-line overlay". That home row is gone, so the settings page
+# now owns this layer — and these rows are exactly what it edits.
+- id: llm-pi-ai
+  config:
+    providers:
+      ollama-local:
+        displayName: Ollama Local
+        apiKeyEnv: OLLAMA_API_KEY
+        api: openai-completions
+        baseURL: http://127.0.0.1:11434/v1
+        models:
+          - id: qwen3.8-27b-uncensored-12k:latest
+            name: Qwen 3.8 27B Uncensored (Ollama)
+            contextWindow: 12288
+            maxTokens: 4096
+            reasoningEfforts: false
+      supercompute:
+        displayName: 国家超算平台 (Token Plan)
+        apiKeyEnv: SUPERCOMPUTE_API_KEY
+        api: openai-completions
+        baseURL: https://api.scnet.cn/api/llm/v1
+        models:
+          - id: DeepSeek-V4-Flash-0731
+            name: DeepSeek V4 Flash (超算0731版)
+            contextWindow: 1000000
+            maxTokens: 393216
+            reasoningEfforts:
+              high: high
+      # Anthropic-Messages wire at the 超算 endpoint. The pi-ai anthropic client
+      # appends `/v1/messages` to baseURL, so this spells the full
+      # https://api.scnet.cn/api/llm/anthropic/v1/messages. The API key is not
+      # stored here: 设置 → 模型 stores it under SCNET_ANTHROPIC_API_KEY.
+      scnet-anthropic:
+        displayName: 国家超算平台 (Anthropic)
+        apiKeyEnv: SCNET_ANTHROPIC_API_KEY
+        api: anthropic-messages
+        baseURL: https://api.scnet.cn/api/llm/anthropic
+        models:
+          - id: DeepSeek-V4.1-Flash
+            name: DeepSeek-V4.1-Flash-0910
+            contextWindow: 1000000
+            maxTokens: 393216
+            input:
+              - text
+              - image
+            reasoningEfforts:
+              high: high
+- id: agent-default-model
+  config:
+    provider: scnet-anthropic
+    model: DeepSeek-V4.1-Flash
+    reasoningEffort: high

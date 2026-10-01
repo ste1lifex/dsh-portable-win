@@ -51,10 +51,29 @@ if ($LASTEXITCODE -ne 0) { throw "DshDesktop 发布失败" }
 
 $built = Join-Path $publish 'DshDesktop.exe'
 $dest  = Join-Path $pkgRoot 'DshDesktop.exe'
+
+# 正在运行的桌面版会占住自己的映像文件，直接覆盖会报共享冲突。Windows 仍允许
+# 在同一卷内“重命名”正在运行的映像，所以退路是：把在用 exe 改名留存，再把新
+# 构建放到原名。正在运行的窗口继续跑旧映像，关掉重开即生效，改名的那份可回滚。
 try {
-    Copy-Item $built $dest -Force
-} catch {
-    throw "无法覆盖 $dest —— 请先关闭正在运行的 DshDesktop.exe 再重试。$($_.Exception.Message)"
+    Copy-Item $built $dest -Force -ErrorAction Stop
+    Write-Host "[build] 已更新 DshDesktop.exe（桌面版未在运行）。" -ForegroundColor Green
+}
+catch {
+    $retired = "$dest.old-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+    try {
+        Move-Item -LiteralPath $dest -Destination $retired -ErrorAction Stop
+        Copy-Item $built $dest -Force -ErrorAction Stop
+        Write-Host "[build] 桌面版正在运行：旧映像已改名保留为 $(Split-Path $retired -Leaf)，新版本已就位。" -ForegroundColor Yellow
+        Write-Host "        关闭并重新打开桌面版后生效；确认无误后可删除那个 .old-* 文件。" -ForegroundColor Yellow
+    }
+    catch {
+        # 复制失败时把改名操作还原，别让根目录缺 exe。
+        if ((Test-Path -LiteralPath $retired) -and -not (Test-Path -LiteralPath $dest)) {
+            Move-Item -LiteralPath $retired -Destination $dest -ErrorAction SilentlyContinue
+        }
+        throw "无法覆盖 $dest —— 请先关闭正在运行的 DshDesktop.exe 再重试。$($_.Exception.Message)"
+    }
 }
 
 Write-Host "[build] 完成: $dest" -ForegroundColor Green

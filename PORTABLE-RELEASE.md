@@ -11,7 +11,7 @@
 | | 内容 | 体积 |
 | --- | --- | --- |
 | **仓库（骨架）** | 启动/停止/升级/回滚脚本、`launcher\` 全部 C# 源码与构建脚本、`app-npm` 与 `profiles\web` 的 `package.json` + `pnpm-lock.yaml`、本地插件源码、图标、文档 | ~4 MB |
-| **Release 资产** | 预编译 `DshDesktop.exe`、`node\`（Node v24.19.0 + pnpm 11.19.0）、`store\`（pnpm 离线缓存，含全部 win32-x64 平台包）、`dsh-home\runtimes\dshdoc-runtime-win32-x64\`（CPython + Tesseract）、`vendor\webview2\`（可选，WebView2 离线安装器）、`vendor\native-fixups\`（pnpm 无法重建的原生/下载产物） | 解压后 ~1.5 GB，**zip 700MB** |
+| **Release 资产** | 预编译 `DshDesktop.exe`、`node\`（Node v24.19.0 + pnpm 11.19.0）、`store\`（pnpm 离线缓存，含全部 win32-x64 平台包）、`dsh-home\runtimes\latex-runtime-win32-x64\`（Tectonic 0.17.0 引擎 + 预热好的 TeX 资源缓存）、`vendor\webview2\`（可选，WebView2 离线安装器）、`vendor\native-fixups\`（pnpm 无法重建的原生/下载产物） | 解压后 ~1.6 GB，**zip 700MB+** |
 
 GitHub 单文件上限 100 MB，`node.exe`、离线缓存等必然超限，所以**载荷一律走 Release 资产**；
 仓库保持轻量，clone 后也能靠 `tools\fetch-node.ps1` + 联网重建依赖跑起来。
@@ -37,10 +37,21 @@ powershell -ExecutionPolicy Bypass -File tools\pack-portable.ps1
 ```
 
 `tools\pack-portable.ps1` 会把仓库骨架 + `node\` + `store\`（存在时）+ `vendor\`（存在时）
-+ `dsh-home\runtimes\`（存在时）+ `DshDesktop.exe`（存在时）一起复制并打包，
-再剔除本机数据（`.env`、`sessions`、`storages`、`attachments`、`webview2-data`、`logs` 等）。
++ `dsh-home\runtimes\`（存在时，仅含 dsh-latex 的 Tectonic 引擎/缓存；`dsh-pdf-reader` 无捆绑运行时，依赖系统 Python 3 + `pymupdf`）
++ `DshDesktop.exe`（存在时）一起复制并打包，
+再剔除本机数据（`.env`、`sessions`、`storages`、`attachments`、`webview2-data`、`speech-to-text`、
+`skin-center-active.json`、`settings.yaml.imported`、`logs` 等），
+以及各插件 fetch 脚本留下的 `.dsh-runtime\` 下载暂存目录（按目录名整体排除，引擎本体已在
+`dsh-home\runtimes\` 里，无需重复分发）。
 
 不需要离线能力时，去掉 `store\` 即可得到一个**联网首启**的小包（首启按锁文件从 npm registry 重装依赖）。
+
+**发布形态：默认单包。** 不带开关时 `store\` 一并入包，产出**一个** `dist\DSH-portable-win-x64.zip`，
+用户只下一次、只解一次即可首启纯离线重建依赖（zip 条目统一用 `/` 分隔并显式写入目录条目，
+任何解压器都能还原出与 staging 树一致的目录结构）。
+`-StoreAsSeparateAsset` 是**可选、特殊场景**（单包将来逼近 GitHub 单资产 2 GiB、或需要 U 盘分卷 /
+内网分块传输）：它把 `store\` 从主包排除、单独压成 `DSH-portable-win-x64-store.zip`，
+这种模式下两个资产必须解压到**同一层**才能合并。
 
 ## 三、目标机器上会发生什么
 
@@ -52,7 +63,10 @@ powershell -ExecutionPolicy Bypass -File tools\pack-portable.ps1
    - 有 `store\` → 先 `pnpm install --offline --frozen-lockfile --store-dir store`；
      失败或没有 `store\` → 直接联网 `pnpm install --frozen-lockfile`；
    - 从 `vendor\native-fixups\` 回填 pnpm 无法重建的原生产物（存在时）；
-   - 检查 `dsh-home\runtimes\dshdoc-runtime-win32-x64`（OCR）；
+   - `dsh-pdf-reader`：无捆绑运行时，唯一外部依赖是系统 Python 3 + `pymupdf`（插件自身在调用时校验，缺失只影响 PDF 阅读）；
+   - 检查 `dsh-home\runtimes\latex-runtime-win32-x64`（Tectonic 引擎）：校验失败先隔离，
+     再自动下载固定版本（SHA-256 校验），首次装好后顺带预热 `minimal` + `chinese` + `common` 三档 TeX 资源集（约 5–7 分钟，含物理字体补齐，使中文文档离线可编译）；
+     彻底恢复不了就写一份只禁用 `dsh-latex` 的临时补丁，其余功能不受影响；
    - 启动核心（端口 3099，`DSH_NO_UPDATE_CHECK=1`），核心自己打开带认证 token 的地址。
 4. 首次启动若没有 `app-npm\.env`，从 `.env.example` 生成模板并提示填写 API Key。
 
@@ -61,7 +75,8 @@ powershell -ExecutionPolicy Bypass -File tools\pack-portable.ps1
 | 不需要网络 | 需要网络 |
 | --- | --- |
 | 启动、会话、文件读写、代码执行、插件加载 | 调用 LLM API（DeepSeek 官方 / 超算平台 / 自建） |
-| 依赖重建（有 `store\` 时）/ PDF/Word/Excel/PPT 解析 + OCR | 无 `store\` 时的依赖安装、联网搜索（dsh-free-search）、cloudflared 隧道 |
+| 依赖重建（有 `store\` 时）/ PDF 内容感知阅读（`dsh-pdf-reader`，本地 CPU） | 无 `store\` 时的依赖安装、联网搜索（dsh-free-search）、cloudflared 隧道 |
+| LaTeX 编译（缓存预热过；或调用时传 `offline: true`） | 首次下载 Tectonic 引擎、首次编译某宏包时的资源拉取、未预热的宏包 |
 
 ## 四、WebView2（桌面壳的内嵌浏览器）
 
@@ -87,3 +102,5 @@ powershell -ExecutionPolicy Bypass -File tools\pack-portable.ps1
 | 浏览器 401 | 裸地址会被拒；用核心打印的带 token 地址（`logs\dsh-web.out.log` 里 `dsh web:` 那条） |
 | 桌面壳白屏 | 大多是 WebView2 缺失/驱动问题：改用 `start-dsh.bat`，或装 WebView2 运行时 |
 | 升级后起不来 | `rollback-dsh.ps1 -List` / `-Restore <备份名>` |
+| 没有 `latex_*` 工具 | 看启动输出与 `logs\startup-fallback-latex.patch.yml`：引擎恢复失败会只禁用该插件。手动重试 `node\bin\node.exe plugins\dsh-latex\scripts\fetch-runtime.mjs` |
+| LaTeX 报 `File 'x.sty' not found` 且开了 `offline` | 该宏包不在缓存里：`warm-cache.mjs --profile=chinese`（或 `full`），或先联网编译一次 |

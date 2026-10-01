@@ -1,0 +1,25 @@
+# dsh-latex — loader entry for the DSH profile that should expose latex_* tools.
+#
+# This file is the plugin's own default patch: it is applied automatically when
+# the package is listed in `dsh.profile.bundles`. A profile-level
+# cordis.patch.yml can still override any key below by targeting `id: dsh-latex`
+# (patch semantics assign `config` wholesale, so repeat every key you keep).
+- insert:
+    - id: dsh-latex
+      name: dsh-latex
+      config:
+        # Where the pinned Tectonic engine and its TeX bundle cache live. Left
+        # empty, the plugin resolves it at mount time from DSH_HOME, so the
+        # whole harness folder can be moved to another path or machine.
+        # runtimeDir: !!js "process.env.DSH_HOME + '/runtimes/latex-runtime-' + process.platform + '-' + process.arch"
+        # Extra directories whose .tex sources the model may compile, beyond the
+        # session workspace (authorized implicitly unless allowWorkspaceFiles is
+        # false).
+        allowedLocalRoots: []
+        # Never let a document reach the network by itself: cached-only compiles
+        # unless a call explicitly asks for online resource fetching.
+        offline: false
+        # Documents are treated as untrusted, which disables \write18 shell
+        # escape. Set true only for sources you wrote yourself.
+        allowShellEscape: false
+        defaultTimeoutMs: 180000

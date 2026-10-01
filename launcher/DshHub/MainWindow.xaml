@@ -220,7 +220,7 @@
                                 <TextBlock x:Name="RowWebUiBadgeText" Text="" FontSize="10.5" FontWeight="SemiBold" />
                             </Border>
 
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="dsh-doc 文档" Style="{StaticResource MetaText}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="PDF 智能阅读" Style="{StaticResource MetaText}" VerticalAlignment="Center" />
                             <TextBlock x:Name="RowDocVer" Grid.Row="2" Grid.Column="1" Style="{StaticResource MetaText}"
                                        Text="—" VerticalAlignment="Center" />
                             <Border x:Name="RowDocBadge" Grid.Row="2" Grid.Column="2" CornerRadius="6" Padding="8,2"
@@ -228,7 +228,7 @@
                                 <TextBlock x:Name="RowDocBadgeText" Text="" FontSize="10.5" FontWeight="SemiBold" />
                             </Border>
 
-                            <TextBlock Grid.Row="3" Grid.Column="0" Text="OCR 运行时" Style="{StaticResource MetaText}" VerticalAlignment="Center" />
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="PDF 阅读依赖" Style="{StaticResource MetaText}" VerticalAlignment="Center" />
                             <TextBlock x:Name="RowOcrText" Grid.Row="3" Grid.Column="1" Style="{StaticResource MetaText}"
                                        Text="—" VerticalAlignment="Center" />
                             <Border x:Name="RowOcrBadge" Grid.Row="3" Grid.Column="2" CornerRadius="6" Padding="8,2"

@@ -210,7 +210,7 @@
                         </Border>
                         <!-- 追踪插件行：动态生成（plugin-track.json 单一数据源） -->
                         <StackPanel x:Name="PluginRows" Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="3" />
-                        <TextBlock Grid.Row="2" Grid.Column="0" Text="OCR 运行时" Style="{StaticResource MetaText}" VerticalAlignment="Center" />
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="PDF 阅读依赖" Style="{StaticResource MetaText}" VerticalAlignment="Center" />
                         <TextBlock x:Name="RowOcrText" Grid.Row="2" Grid.Column="1" Style="{StaticResource MetaText}" Text="—" VerticalAlignment="Center" />
                         <Border x:Name="RowOcrBadge" Grid.Row="2" Grid.Column="2" CornerRadius="6" Padding="8,2" VerticalAlignment="Center" Background="{DynamicResource BadgeNeutralBg}">
                             <TextBlock x:Name="RowOcrBadgeText" Text="" FontSize="10.5" FontWeight="SemiBold" Foreground="{DynamicResource BadgeNeutralFg}" />

@@ -2,11 +2,12 @@
   "name": "dsh-profile-web",
   "private": true,
   "dependencies": {
-    "@linxin666/dsh-web-all": "^0.3.23",
-    "dsh-computer-use-win": "^0.1.2",
-    "dsh-doc": "0.1.1",
+    "@linxin666/dsh-web-all": "^0.4.4",
+    "dsh-computer-use-win": "^0.2.3",
     "dsh-endfield-boot": "link:../../../plugins/dsh-endfield-boot",
-    "dsh-free-search": "0.4.32",
+    "dsh-free-search": "0.6.5",
+    "dsh-latex": "link:../../../plugins/dsh-latex",
+    "dsh-pdf-reader": "^0.2.0",
     "dsh-pet-perlica": "link:../../../plugins/dsh-pet-perlica"
   },
   "dsh": {
@@ -14,11 +15,14 @@
       "bundles": [
         "@deepseek-ai/dsh-base",
         "@deepseek-ai/dsh-web-app",
-        "dsh-doc",
         "@linxin666/dsh-web-all",
-        "dsh-endfield-boot",
         "dsh-free-search",
-        "dsh-computer-use-win"
+        "dsh-computer-use-win",
+        "dsh-latex",
+        "@deepseek-ai/dsh-experimental-voice-input-bundle",
+        "dsh-pdf-reader",
+        "dsh-endfield-boot",
+        "@deepseek-ai/dsh-experimental-schedule-bundle"
       ]
     }
   }

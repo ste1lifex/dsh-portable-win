@@ -61,7 +61,8 @@ public sealed class DshCore
     public string? CoreLocal { get; private set; }
     public string? CoreLatest { get; private set; }
     public IReadOnlyList<PluginVersionInfo> Plugins { get; private set; } = Array.Empty<PluginVersionInfo>();
-    public bool OcrReady { get; private set; }
+    /// <summary>PDF 阅读依赖是否就绪（系统 Python 3 + pymupdf）</summary>
+    public bool PdfReaderReady { get; private set; }
     public bool Offline { get; private set; }
 
     public DshCore()
@@ -81,7 +82,7 @@ public sealed class DshCore
     public string PidFile => Path.Combine(Root, "dsh.pid");
     public string LogDir => Path.Combine(Root, "logs");
     public string BackupDir => Path.Combine(Root, "backups");
-    public string OcrRuntimeDir => Path.Combine(Root, "dsh-home", "runtimes", "dshdoc-runtime-win32-x64");
+    // 说明：dsh-pdf-reader 为宿主侧插件，不自带运行时目录，依赖系统 Python 3 + pymupdf。
     /// <summary>插件追踪清单（单一数据源，与 update-dsh.ps1 共用）</summary>
     public string PluginTrackFile => Path.Combine(Root, "plugin-track.json");
     public string ScriptPath(string name) => Path.Combine(Root, name);
@@ -110,8 +111,12 @@ public sealed class DshCore
                 using var stream = new FileStream(outputPath, FileMode.Open, FileAccess.Read,
                     FileShare.ReadWrite | FileShare.Delete);
                 using var reader = new StreamReader(stream, Encoding.UTF8, true);
-                var matches = Regex.Matches(reader.ReadToEnd(),
-                    @"(?m)^dsh web:\s+(?<url>http://127\.0\.0\.1:3099/\?token=[A-Za-z0-9_-]+)\s*$");
+                // The port takes part in the launch URL, so it must come from the
+                // configured port instead of a literal: on any other port the
+                // token would never be found and the shell would fall back to an
+                // unauthenticated navigation (the server answers 401 there).
+                var launchUrlPattern = $@"(?m)^dsh web:\s+(?<url>http://127\.0\.0\.1:{Port}/\?token=[A-Za-z0-9_-]+)\s*$";
+                var matches = Regex.Matches(reader.ReadToEnd(), launchUrlPattern);
                 if (matches.Count == 0) return Url;
 
                 var candidate = matches[^1].Groups["url"].Value;
@@ -558,38 +563,104 @@ public sealed class DshCore
     public async Task LoadVersionsAsync()
     {
         CoreLocal = ReadJsonVersion(CorePkgJson) ?? "?";
-        OcrReady = Directory.Exists(OcrRuntimeDir);
+        // 探针失败绝不外抛：异常一律吞掉并按“未就绪”处理。
+        try { PdfReaderReady = await ProbePdfReaderAsync(); }
+        catch { PdfReaderReady = false; }
 
         var entries = ReadTrackedPlugins();
         var list = new List<PluginVersionInfo>(entries.Count);
-        foreach (var (name, label) in entries)
+        foreach (var (name, label, isLocal) in entries)
         {
             var local = ReadJsonVersion(Path.Combine(ProfilesWeb, "node_modules", name, "package.json"));
-            var latest = await GetNpmLatestAsync(name);
-            list.Add(new PluginVersionInfo(name, label, local, latest));
+            // 本地 link: 插件（源码就在 plugins\ 下）不来自 npm：不查询 registry，
+            // 因此也不会被显示成“离线”；它们随 DSH 目录一起升级。
+            var latest = isLocal ? null : await GetNpmLatestAsync(name);
+            list.Add(new PluginVersionInfo(name, label, local, latest, isLocal));
         }
         Plugins = list;
 
         CoreLatest = await GetNpmLatestAsync("@deepseek-ai/dsh");
-        Offline = CoreLatest is null && list.All(p => p.Latest is null);
+        Offline = CoreLatest is null && list.All(p => p.Latest is null || p.IsLocal);
 
         VersionsChanged?.Invoke();
     }
 
-    /// <summary>读取插件追踪清单（plugin-track.json）；缺失或损坏时回退内置默认。</summary>
-    private List<(string name, string label)> ReadTrackedPlugins()
+    /// <summary>
+    /// 按优先级给出待探测的 Python 解释器：虚拟环境（%VIRTUAL_ENV%\Scripts\python.exe）
+    /// 优先，其后依次是 PATH 上的 python、python3、py。
+    /// </summary>
+    private static IEnumerable<string> PythonInterpreterCandidates()
+    {
+        var venv = Environment.GetEnvironmentVariable("VIRTUAL_ENV");
+        if (!string.IsNullOrWhiteSpace(venv))
+        {
+            var venvPython = Path.Combine(venv, "Scripts", "python.exe");
+            if (File.Exists(venvPython)) yield return venvPython;
+        }
+        yield return "python";
+        yield return "python3";
+        yield return "py";
+    }
+
+    /// <summary>
+    /// PDF 阅读依赖探针：依次用候选解释器执行 <c>python -c "import pymupdf"</c>，
+    /// 只有退出码为 0 才算就绪；单个候选 10 秒超时，超时或异常都不外抛。
+    /// </summary>
+    private static async Task<bool> ProbePdfReaderAsync()
+    {
+        foreach (var python in PythonInterpreterCandidates())
+        {
+            try
+            {
+                var psi = new ProcessStartInfo(python)
+                {
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
+                psi.ArgumentList.Add("-c");
+                psi.ArgumentList.Add("import pymupdf");
+
+                using var proc = new Process { StartInfo = psi };
+                if (!proc.Start()) continue;
+
+                var stdout = proc.StandardOutput.ReadToEndAsync();
+                var stderr = proc.StandardError.ReadToEndAsync();
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                try
+                {
+                    await proc.WaitForExitAsync(cts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    try { proc.Kill(entireProcessTree: true); } catch { /* 可能已自行退出 */ }
+                    return false;
+                }
+                await Task.WhenAll(stdout, stderr);
+                if (proc.ExitCode == 0) return true;
+            }
+            catch { /* 该候选不可用，继续尝试下一个 */ }
+        }
+        return false;
+    }
+
+    /// <summary>读取插件追踪清单（plugin-track.json）；缺失或损坏时回退内置默认。条目可带 "local": true 表示本地 link: 插件。</summary>
+    private List<(string name, string label, bool local)> ReadTrackedPlugins()
     {
         try
         {
             if (File.Exists(PluginTrackFile))
             {
                 var text = File.ReadAllText(PluginTrackFile, Encoding.UTF8);
-                var matches = Regex.Matches(text, "\"name\"\\s*:\\s*\"([^\"]+)\"\\s*,\\s*\"label\"\\s*:\\s*\"([^\"]+)\"");
+                var matches = Regex.Matches(text,
+                    "\"name\"\\s*:\\s*\"([^\"]+)\"\\s*,\\s*\"label\"\\s*:\\s*\"([^\"]+)\"(?:\\s*,\\s*\"local\"\\s*:\\s*(true|false))?");
                 if (matches.Count > 0)
                 {
-                    var result = new List<(string name, string label)>(matches.Count);
+                    var result = new List<(string name, string label, bool local)>(matches.Count);
                     foreach (Match m in matches)
-                        result.Add((m.Groups[1].Value, m.Groups[2].Value));
+                        result.Add((m.Groups[1].Value, m.Groups[2].Value,
+                            m.Groups[3].Success && m.Groups[3].Value == "true"));
                     return result;
                 }
             }
@@ -598,11 +669,19 @@ public sealed class DshCore
         return DefaultTrackedPlugins();
     }
 
-    private static List<(string name, string label)> DefaultTrackedPlugins() => new()
+    /// <summary>
+    /// 内置回退清单：与 plugin-track.json 的 name/label/顺序保持一致
+    /// （dsh-doc 已换为宿主侧插件 dsh-pdf-reader；local 项为 link: 本地插件）。
+    /// </summary>
+    private static List<(string name, string label, bool local)> DefaultTrackedPlugins() => new()
     {
-        ("@linxin666/dsh-web-all", "Web UI 全家桶"),
-        ("dsh-doc", "dsh-doc 文档/OCR"),
-        ("@liustack/modsearch", "modsearch 联网搜索")
+        ("@linxin666/dsh-web-all", "Web UI 全家桶", false),
+        ("dsh-pdf-reader", "PDF 智能阅读", false),
+        ("dsh-free-search", "Free Search 联网搜索", false),
+        ("dsh-computer-use-win", "Windows 电脑控制", false),
+        ("dsh-latex", "dsh-latex 自包含 LaTeX", true),
+        ("dsh-pet-perlica", "佩丽卡 桌面宠物", true),
+        ("dsh-endfield-boot", "终末地启动画面", true)
     };
 
     /// <summary>计算一行版本的显示信息：本地→最新、徽章文本。</summary>
@@ -625,7 +704,7 @@ public sealed class DshCore
          Plugins.Any(p => p.Latest is not null && CompareVersions(p.Latest, p.Local ?? "0") > 0));
 }
 
-public enum DshBadge { Green, Amber, Gray, Red }
+public enum DshBadge { Green, Amber, Gray, Red, Local }
 
 /// <summary>追踪插件的一行版本信息（label / 本地 → 最新 / 徽章状态）</summary>
 public sealed class PluginVersionInfo
@@ -634,21 +713,29 @@ public sealed class PluginVersionInfo
     public string Label { get; }
     public string? Local { get; }
     public string? Latest { get; }
+    /// <summary>源码随 DSH 目录一起维护的本地插件（link: 安装，不来自 npm）。</summary>
+    public bool IsLocal { get; }
 
-    public PluginVersionInfo(string name, string label, string? local, string? latest)
+    public PluginVersionInfo(string name, string label, string? local, string? latest, bool isLocal = false)
     {
         Name = name;
         Label = label;
         Local = local;
         Latest = latest;
+        IsLocal = isLocal;
     }
 
-    public string Display => Latest is null ? (Local ?? "—") : $"{Local}  →  {Latest}";
+    public string Display => IsLocal
+        ? $"{Local ?? "—"}　·　本地插件（随 DSH 目录升级）"
+        : Latest is null ? (Local ?? "—") : $"{Local}  →  {Latest}";
 
     public string BadgeText =>
-        Latest is null ? "离线" : (Badge == DshBadge.Amber ? "发现新版本" : "已最新");
+        IsLocal ? "本地" :
+        Latest is null ? "离线" :
+        (Badge == DshBadge.Amber ? "发现新版本" : "已最新");
 
     public DshBadge Badge =>
+        IsLocal ? DshBadge.Local :
         Latest is null ? DshBadge.Gray :
         (DshCore.CompareVersions(Latest, Local ?? "0") > 0 ? DshBadge.Amber : DshBadge.Green);
 }

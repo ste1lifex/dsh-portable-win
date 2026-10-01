@@ -57,7 +57,7 @@ function Get-TrackedPlugins {
     if (Test-Path -LiteralPath $pluginTrackFile -PathType Leaf) {
         try {
             $track = Get-Content -LiteralPath $pluginTrackFile -Raw -Encoding UTF8 | ConvertFrom-Json
-            $list = @($track.plugins | ForEach-Object { @{ name = [string]$_.name; label = [string]$_.label } })
+            $list = @($track.plugins | ForEach-Object { @{ name = [string]$_.name; label = [string]$_.label; local = [bool]$_.local } })
             if ($list.Count -gt 0) { return $list }
         } catch {
             Write-Host "[update] 提示：plugin-track.json 读取失败，使用内置默认清单。"
@@ -65,12 +65,16 @@ function Get-TrackedPlugins {
     }
     return @(
         @{ name = '@linxin666/dsh-web-all'; label = 'Web UI 全家桶' },
-        @{ name = 'dsh-doc';                  label = 'dsh-doc 本地文档/OCR' },
-        @{ name = 'dsh-free-search';          label = 'Free Search 联网搜索' }
+        @{ name = 'dsh-pdf-reader';           label = 'PDF 智能阅读' },
+        @{ name = 'dsh-free-search';          label = 'Free Search 联网搜索' },
+        @{ name = 'dsh-computer-use-win';     label = 'Windows 电脑控制' },
+        @{ name = 'dsh-latex';                label = 'dsh-latex 自包含 LaTeX'; local = $true },
+        @{ name = 'dsh-pet-perlica';          label = '佩丽卡 桌面宠物'; local = $true },
+        @{ name = 'dsh-endfield-boot';        label = '终末地启动画面'; local = $true }
     )
 }
 $pluginPkgs = Get-TrackedPlugins
-$docRuntimeDir = Join-Path $root 'dsh-home\runtimes\dshdoc-runtime-win32-x64'
+$pdfReaderDir = Join-Path $profileDir 'node_modules\dsh-pdf-reader'
 $pnpmCmd = Join-Path $root 'tools\pnpm.cmd'
 $storeDir = Join-Path $root 'store'
 $logDir = Join-Path $root 'logs'
@@ -220,6 +224,43 @@ function Get-NpmLatestManifest($pkg) {
     }
 }
 
+function Test-PdfReaderDependency {
+    # dsh-pdf-reader 不捆绑运行时：它调用系统 Python 3 + pymupdf（抽取文本层 +
+    # 渲染图/表/公式区域）。缺失只影响 PDF 工具，因此这里只报告状态。
+    # 返回：插件未安装 -> $null；依赖就绪 -> 解释器路径；缺失 -> 空字符串。
+    $pdfReaderManifest = Join-Path $pdfReaderDir 'package.json'
+    if (-not (Test-Path -LiteralPath $pdfReaderManifest -PathType Leaf)) { return $null }
+
+    $candidates = @()
+    if ($env:VIRTUAL_ENV) { $candidates += (Join-Path $env:VIRTUAL_ENV 'Scripts\python.exe') }
+    $candidates += @('python', 'python3', 'py')
+
+    foreach ($candidate in $candidates) {
+        if ($candidate -like '*\*') {
+            if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
+            $exe = $candidate
+        }
+        else {
+            $cmd = Get-Command $candidate -ErrorAction SilentlyContinue
+            if (-not $cmd) { continue }
+            $exe = $cmd.Source
+        }
+        $oldErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = 'Continue'
+            & $exe -c 'import pymupdf' *> $null
+            if ($LASTEXITCODE -eq 0) { return $exe }
+        }
+        catch {
+            # 探测失败是预期路径，继续试下一个解释器。
+        }
+        finally {
+            $ErrorActionPreference = $oldErrorActionPreference
+        }
+    }
+    return ''
+}
+
 function Wait-TaskBoardLockReady {
     param(
         [System.Diagnostics.Process]$Process,
@@ -320,6 +361,13 @@ $latestPlugins = @{}
 $latestPluginManifests = @{}
 $haveNetwork = $null -ne $latestCore
 foreach ($p in $pluginPkgs) {
+    if ($p.local) {
+        # 本地 link: 插件（源码就在 plugins\ 下）不来自 npm：升级方式是改目录后
+        # 重新构建，绝不去 npm 查询——查不到会被误判成离线，从而跳过整个检查。
+        $latestPluginManifests[$p.name] = $null
+        $latestPlugins[$p.name] = $script:pluginVersions[$p.name]
+        continue
+    }
     $manifest = Get-NpmLatestManifest $p.name
     $latestPluginManifests[$p.name] = $manifest
     $latestPlugins[$p.name] = if ($null -ne $manifest) { [string]$manifest.version } else { $null }
@@ -353,13 +401,21 @@ $anyIncompatiblePluginNew = @($pluginPkgs | Where-Object {
 
 Write-Step ("核心：本地 {0} / 最新 {1} {2}" -f $script:currentCore, $latestCore, $(if ($coreNew) { '← 有新版本' } else { '(已最新)' }))
 foreach ($p in $pluginPkgs) {
+    if ($p.local) {
+        Write-Step ("插件 {0}：本地 {1} （本地插件，随 DSH 目录升级）" -f $p.label, $script:pluginVersions[$p.name])
+        continue
+    }
     $compat = $pluginCompatibility[$p.name]
     $marker = if (-not $compat.compatible) {
         "← 跳过：要求 DSH $($compat.requiredCore)，本次核心为 $targetCore"
     } elseif ($pluginNews[$p.name]) { '← 有新版本' } else { '(已最新)' }
     Write-Step ("插件 {0}：本地 {1} / 最新 {2} {3}" -f $p.label, $script:pluginVersions[$p.name], $latestPlugins[$p.name], $marker)
 }
-Write-Step ("dsh-doc 本地 OCR 运行时：{0}" -f $(if (Test-Path $docRuntimeDir) { '就绪' } else { '缺失（可重新下载）' }))
+$pdfReaderPython = Test-PdfReaderDependency
+if ($null -ne $pdfReaderPython) {
+    $pdfReaderState = if ($pdfReaderPython) { "就绪（$pdfReaderPython）" } else { '缺失（可安装：python -m pip install pymupdf）' }
+    Write-Step ("dsh-pdf-reader 依赖（Python 3 + pymupdf）：{0}" -f $pdfReaderState)
+}
 
 if ($Check) {
     Write-Step '检查模式：未做任何修改。'
@@ -479,9 +535,9 @@ if ($failed) {
 }
 
 Write-Step '升级完成。'
-if (-not (Test-Path $docRuntimeDir)) {
-    Write-Step '提示：dsh-doc 的本地 OCR 运行时不存在，请重新下载：'
-    Write-Step "  node dsh-home\profiles\web\node_modules\dsh-doc\scripts\fetch-runtime-win32-x64.mjs dsh-home\runtimes\dshdoc-runtime-win32-x64"
+if ((Test-PdfReaderDependency) -eq '') {
+    Write-Step '提示：dsh-pdf-reader 需要系统 Python 3 + pymupdf，当前未检测到：'
+    Write-Step '  python -m pip install pymupdf'
 }
 if (-not $AutoPrompt) {
     $verify = Verify-Boot

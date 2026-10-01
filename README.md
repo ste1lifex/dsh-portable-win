@@ -6,7 +6,7 @@
 > **English TL;DR** — A self-contained Windows distribution of DeepSeek Harness (an extensible
 > LLM agent runtime). This repository holds the *skeleton* (launcher scripts, the WPF desktop
 > shell source, dependency manifests + lockfiles, bundled plugin sources and docs). The heavy
-> payload (portable Node runtime, offline pnpm store, OCR runtime, prebuilt `DshDesktop.exe`)
+> payload (portable Node runtime, offline pnpm store, LaTeX runtime, prebuilt `DshDesktop.exe`)
 > is published as **GitHub Release assets** — or can be rebuilt locally with
 > `tools\fetch-node.ps1` + `start-dsh.bat`. MIT licensed; DSH itself is MIT by DeepSeek.
 
@@ -20,9 +20,9 @@
 | ✅ | **依赖可重建**：锁文件与清单在仓库里，`store\` 缺失时首启自动联网按锁文件重装 |
 | ❌ | 本仓库**不含** Node 运行时 / 离线缓存 / 预编译 exe —— 这些体积过大（数百 MB ~ 2GB），按 GitHub 约定放在 Release 资产里 |
 
-版本：`@deepseek-ai/dsh` **0.1.5-rc.2** · `@linxin666/dsh-web-all` **^0.3.23** ·
-`dsh-free-search` **0.4.32** · `dsh-doc` **0.1.1** · `dsh-computer-use-win` **^0.1.2** ·
-Node **v24.19.0** · pnpm **11.19.0**
+版本：`@deepseek-ai/dsh` **0.1.5-rc.2** · `@linxin666/dsh-web-all` **^0.3.24** ·
+`dsh-free-search` **0.4.32** · `dsh-pdf-reader` **^0.2.0** · `dsh-computer-use-win` **^0.1.2** ·
+`dsh-latex` **0.2.0** · Node **v24.19.0** · pnpm **11.19.0**
 
 ---
 
@@ -58,7 +58,7 @@ start-dsh.bat
 #   store\  ← 解压自 Release 资产
 start-dsh.bat
 
-# 组装一份可分发目录 / zip（把 node + store + 可选 OCR 运行时 + exe 一起打包）
+# 组装一份可分发目录 / zip（默认单包：把 node + store + 可选 LaTeX 运行时 + exe 一起打包）
 powershell -ExecutionPolicy Bypass -File tools\pack-portable.ps1
 ```
 
@@ -77,10 +77,11 @@ dsh-portable-win/
 ├─ DshDesktop.exe          ← 不在仓库里：Release 资产或自行编译（桌面壳，自包含 .NET）
 ├─ node/                   ← 不在仓库里：tools\fetch-node.ps1 生成（Node + pnpm）
 ├─ store/                  ← 不在仓库里：离线依赖缓存（Release 资产；缺失则联网重装依赖）
-├─ dsh-home/runtimes/      ← 不在仓库里：dsh-doc 的 CPython + Tesseract OCR 运行时
+├─ dsh-home/runtimes/      ← 不在仓库里：仅 dsh-latex 的 Tectonic 引擎与 TeX 资源缓存
+│                             （dsh-pdf-reader 无捆绑运行时，用系统 Python 3 + pymupdf）
 ├─ app-npm/                程序本体清单 + 锁文件（@deepseek-ai/dsh）
 ├─ dsh-home/               设置 / 补丁 / profiles（web 与 headless 的清单与锁文件）/ 预设
-├─ plugins/                本地插件源码（dsh-endfield-boot、dsh-pet-perlica）
+├─ plugins/                本地插件源码（dsh-endfield-boot、dsh-pet-perlica、dsh-latex）
 ├─ launcher/               桌面壳与共享引擎的 C# 源码 + 构建脚本（DshDesktop / DshHub / DshCore / IconGen）
 ├─ tools/                  fetch-node.ps1、pack-portable.ps1、pnpm.cmd
 ├─ docs/                   设计笔记与调研
@@ -91,6 +92,33 @@ dsh-portable-win/
 ├─ rollback-dsh.ps1        回滚到升级前备份
 └─ dsh.cmd                 headless CLI 入口
 ```
+
+---
+
+## 自带插件与工具
+
+| 插件 | 提供的工具 | 额外运行时 |
+| --- | --- | --- |
+| `dsh-pdf-reader` | `pdf_scan` / `pdf_read_page` / `pdf_render_region`：本地 CPU、PDF 内容感知阅读——正文走 PyMuPDF 文本抽取，图片 / 表格 / 公式按模型图片预算渲染成高清 PNG 交给视觉模型（`read_image`）；不是内置 OCR 引擎 | 无捆绑运行时；唯一外部依赖是系统 Python 3 + `pymupdf` |
+| `dsh-free-search` | `web_search` / `advanced_search` / `platform_search` 等联网检索 | 无（纯 JS） |
+| `dsh-computer-use-win` | `mcp__wincu__*`：Windows UI 自动化与截图 | 无 |
+| **`dsh-latex`** | **`latex_health` / `latex_compile` / `latex_math`：把 `.tex` 或单个公式编译成 PDF** | `dsh-home/runtimes/latex-runtime-win32-x64`（Tectonic 引擎 + TeX 资源缓存） |
+| `dsh-pet-perlica` | 桌面宠物（纯前端） | 无 |
+| `dsh-endfield-boot` | 启动动画（纯前端） | 无 |
+
+`dsh-latex` 的引擎不在仓库里：`start-dsh.ps1` 每次启动都会校验
+`dsh-home\runtimes\latex-runtime-win32-x64`，缺失或校验失败时自动从上游 Release
+下载固定版本（SHA-256 校验通过才落盘），并预热 `minimal` + `chinese` + `common`
+三档 TeX 资源缓存（首次约 5–7 分钟，实测），让**离线编译**开箱可用（含中文文档）。
+想预装更多宏包：
+
+```powershell
+& node\bin\node.exe plugins\dsh-latex\scripts\warm-cache.mjs --profile=chinese
+```
+
+插件本身的源码、跨平台 fetch/verify/warm 脚本、单元与集成测试都在
+[`plugins/dsh-latex/`](plugins/dsh-latex/)（`README.md` / `README.zh-CN.md` /
+`INSTALL.md`），可以单独 clone 出去作为独立开源仓库使用。
 
 ---
 

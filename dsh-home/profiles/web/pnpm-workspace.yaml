@@ -16,10 +16,10 @@ allowBuilds:
 # version when a fresh release is inside the age window.
 minimumReleaseAgeExclude:
   - '@linxin666/*'
-  - dsh-doc@0.1.1
   - '@mlgbnb/dsh-archive-manager@1.0.7'
   - '@morlay/better-session@0.0.11'
   - '@morlay/session-branch@0.0.11'
   - '@morlay/session-rdb@0.0.11'
   - '@morlay/ui-conversation-message-actions@0.0.11'
-  - dsh-free-search@0.4.28 || 0.4.32
+  - dsh-free-search@0.4.28 || 0.4.32 || 0.5.0 || 0.6.5
+  - dsh-computer-use-win@0.2.3

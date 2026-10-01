@@ -1,8 +1,11 @@
 {
   "plugins": [
     { "name": "@linxin666/dsh-web-all", "label": "Web UI 全家桶" },
-    { "name": "dsh-doc", "label": "dsh-doc 文档/OCR" },
+    { "name": "dsh-pdf-reader", "label": "PDF 智能阅读" },
     { "name": "dsh-free-search", "label": "Free Search 联网搜索" },
-    { "name": "dsh-computer-use-win", "label": "Windows 电脑控制" }
+    { "name": "dsh-computer-use-win", "label": "Windows 电脑控制" },
+    { "name": "dsh-latex", "label": "dsh-latex 自包含 LaTeX", "local": true },
+    { "name": "dsh-pet-perlica", "label": "佩丽卡 桌面宠物", "local": true },
+    { "name": "dsh-endfield-boot", "label": "终末地启动画面", "local": true }
   ]
 }

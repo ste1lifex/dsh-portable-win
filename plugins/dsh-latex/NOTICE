@@ -1,0 +1,40 @@
+# Third-party notices
+
+`dsh-latex` itself is MIT licensed (see [LICENSE](LICENSE)). It has **no npm
+runtime dependencies**, but it does install one third-party program at runtime.
+
+---
+
+## Tectonic
+
+- Project: <https://github.com/tectonic-typesetting/tectonic>
+- License: MIT
+- Version pinned by this plugin: **0.17.0**
+- How it is obtained: downloaded from the project's own GitHub Release by
+  `scripts/fetch-runtime.mjs`, verified against the SHA-256 recorded in
+  `scripts/lib/manifest.mjs`, and executed as a separate process. It is not
+  vendored into this repository and is not linked into any JavaScript code.
+
+Pinned release assets and their SHA-256 digests:
+
+| Platform | Asset | SHA-256 |
+| --- | --- | --- |
+| `win32-x64` | `tectonic-0.17.0-x86_64-pc-windows-msvc.zip` | `f61ce51f0b0ade1015b7de7ef368541c5424e9756ecbd0d7af97d6d48030845f` |
+| `darwin-x64` | `tectonic-0.17.0-x86_64-apple-darwin.tar.gz` | `7c90ef5b6ddb1eb1937e4337add5237b79338e4b9676459fa91187d24d6cdf80` |
+| `darwin-arm64` | `tectonic-0.17.0-aarch64-apple-darwin.tar.gz` | `a3f1cac7c5678f01661a92212f58480ae3b0634115d880dbc59e2953ded45667` |
+| `linux-x64` | `tectonic-0.17.0-x86_64-unknown-linux-musl.tar.gz` | `8533d07f9ccbd7a65824b9e0459041bca34af1eb33daba48f59215593753a3b7` |
+| `linux-arm64` | `tectonic-0.17.0-aarch64-unknown-linux-musl.tar.gz` | `b10954a95404f3ab2328d2fa59a5ebab8e657f893fab096f98be8db7c0c979b8` |
+
+### TeX resources
+
+Tectonic resolves LaTeX packages from the **Tectonic default bundle**
+(`https://relay.fullyjustified.net/default_bundle_v33.tar`), a repackaging of
+TeX Live produced by the Tectonic project. Those files are downloaded lazily,
+only for the packages a document actually loads, and cached under
+`<runtimeDir>/cache`. Their licenses are the individual TeX Live package
+licenses; the bundle index is published by the Tectonic project. This
+repository contains none of them.
+
+The `win32-x64` Windows GNU build published by Tectonic is deliberately **not**
+used: it is dynamically linked against a MinGW runtime that the release archive
+does not ship, so it fails with `STATUS_DLL_NOT_FOUND` on a clean machine.

@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    name: Unit tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      # No install step: the package has no dependencies.
+      - run: node --test "test/unit/**/*.test.mjs"
+        shell: bash
+
+  integration:
+    name: Integration tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Fetch the pinned Tectonic engine
+        run: node scripts/fetch-runtime.mjs
+      - name: Warm the resource cache
+        run: node scripts/warm-cache.mjs --profile=minimal
+      - name: Run the integration suite
+        run: node --test "test/integration/**/*.test.mjs"
+        shell: bash
+
+  publish-dry-run:
+    name: Package contents
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Assert the tarball stays small and carries no engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm pack --dry-run --json > pack.json
+          node -e '
+            const [entry] = require("./pack.json");
+            const bytes = entry.files.reduce((total, file) => total + file.size, 0);
+            const forbidden = entry.files.filter(file => /\.(exe|dll|so|dylib)$|\.dsh-runtime\//.test(file.path));
+            if (forbidden.length > 0) {
+              console.error("refusing to publish binaries:", forbidden.map(file => file.path));
+              process.exit(1);
+            }
+            if (bytes > 400 * 1024) {
+              console.error(`package is too large: ${bytes} bytes`);
+              process.exit(1);
+            }
+            console.log(`package payload: ${bytes} bytes across ${entry.files.length} files`);
+          '

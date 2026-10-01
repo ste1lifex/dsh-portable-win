@@ -1,0 +1,58 @@
+% dsh-latex showcase — compile with:
+%   latex_compile { "source_path": "examples/showcase.tex" }
+% or from a shell:
+%   node <dsh-latex>/scripts/warm-cache.mjs --profile=chinese
+%   <runtimeDir>/tectonic -X compile examples/showcase.tex --outdir examples
+\documentclass[11pt]{ctexart}
+
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{geometry}
+\usepackage{hyperref}
+
+\title{dsh-latex 示例文档}
+\author{DeepSeek Harness}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{这是什么}
+这是 \texttt{dsh-latex} 的示例文档：由固定版本的 Tectonic 引擎编译，
+不需要系统安装 TeX，编译时只按需拉取文档真正用到的宏包。
+
+\section{数学}
+行内公式 $E = mc^2$，以及行间公式：
+\begin{equation}
+  \int_{-\infty}^{\infty} e^{-x^{2}}\,\mathrm{d}x = \sqrt{\pi}
+  \qquad\text{和}\qquad
+  \sum_{n=1}^{\infty}\frac{1}{n^{2}} = \frac{\pi^{2}}{6}.
+\end{equation}
+
+矩阵与对齐环境同样可用：
+\begin{align}
+  \nabla \cdot \mathbf{E} &= \frac{\rho}{\varepsilon_0}, &
+  \nabla \times \mathbf{B} &= \mu_0 \mathbf{J}
+  + \mu_0\varepsilon_0 \frac{\partial \mathbf{E}}{\partial t}.
+\end{align}
+
+\section{表格}
+\begin{table}[ht]
+  \centering
+  \begin{tabular}{lrr}
+    \toprule
+    工具 & 输入 & 输出 \\
+    \midrule
+    \texttt{latex\_compile} & \texttt{.tex} 文件或内联源码 & PDF \\
+    \texttt{latex\_math}    & 单个公式                  & 裁剪后的 PDF \\
+    \texttt{latex\_health}  & 无                        & 引擎与缓存状态 \\
+    \bottomrule
+  \end{tabular}
+  \caption{三个工具。}
+\end{table}
+
+\section{中文}
+中文排版由 \texttt{ctex} 提供（对应 \texttt{warm-cache.mjs --profile=chinese}）。
+预热的宏包集合之外的内容，首次编译时会联网补齐，之后即缓存复用。
+
+\end{document}

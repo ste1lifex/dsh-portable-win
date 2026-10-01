@@ -1,31 +1,18 @@
-# Local Ollama model route for the portable Harness.
-- id: llm-pi-ai
-  config:
-    providers:
-      ollama-local:
-        displayName: Ollama Local
-        apiKeyEnv: OLLAMA_API_KEY
-        api: openai-completions
-        baseURL: http://127.0.0.1:11434/v1
-        models:
-          - id: qwen3.8-27b-uncensored-12k:latest
-            name: Qwen 3.8 27B Uncensored (Ollama)
-            contextWindow: 12288
-            maxTokens: 4096
-            reasoningEfforts: false
-      supercompute:
-        displayName: 国家超算平台 (Token Plan)
-        apiKeyEnv: SUPERCOMPUTE_API_KEY
-        api: openai-completions
-        baseURL: https://api.scnet.cn/api/llm/v1
-        models:
-          - id: DeepSeek-V4-Flash-0731
-            name: DeepSeek V4 Flash (超算0731版)
-            contextWindow: 1000000
-            maxTokens: 393216
-            reasoningEfforts:
-              high: high
-- id: agent-default-model
-  config:
-    provider: supercompute
-    model: DeepSeek-V4-Flash-0731
+# Home-level patch, applied to EVERY dsh profile (web, headless, ...) and — in
+# the composition order bundles -> profile patch -> home patch -> --patch —
+# AFTER each profile's own cordis.patch.yml. A `config` row here therefore
+# outranks the profile layer, and the web Models settings page then refuses to
+# write that entry ("... is overridden by a home patch or command-line
+# overlay").
+#
+# The llm-pi-ai provider routes (ollama-local, supercompute) and the
+# agent-default-model that used to live here were moved into each profile's own
+# patch on 2026-10-01:
+#   dsh-home/profiles/web/cordis.patch.yml
+#   dsh-home/profiles/headless/cordis.patch.yml
+# Nothing is configured at home level any more, so 设置 → 模型 can manage the
+# model routes again.
+#
+# This file must stay a valid YAML sequence: a comments-only file fails boot
+# (loadOptionalPatches), so the empty layer is written as `[]`.
+[]
